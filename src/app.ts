@@ -28,7 +28,7 @@ import { syncEurobankBranchTransactionsToSheet } from "./sync-eurobank.ts";
 import { syncEurobankIkeTransactionsToSheet } from "./sync-eurobank-ike.ts";
 import { syncPaypalTransactionsToSheet } from "./sync-paypal-transactions.ts";
 import { syncVivaTransactionsToSheet } from "./sync-viva-transactions.ts";
-import { syncWiseEurTransactionsToSheet, syncWiseGbpTransactionsToSheet, syncWiseUsdTransactionsToSheet } from "./sync-wise-transactions.ts";
+import { syncWiseEurTransactionsToSheet, syncWiseUsdTransactionsToSheet } from "./sync-wise-transactions.ts";
 
 export function createApp() {
   const log = (msg: string, extra?: unknown) => console.log(`[bank ${new Date().toISOString()}] ${msg}`, extra ?? "");
@@ -412,7 +412,6 @@ export function createApp() {
     registerTransactionSync("/cron/sync-cledara-transactions", "sync-cledara-transactions", syncCledaraTransactionsToSheet);
     registerTransactionSync("/cron/sync-wise-usd-transactions", "sync-wise-usd-transactions", syncWiseUsdTransactionsToSheet);
     registerTransactionSync("/cron/sync-wise-eur-transactions", "sync-wise-eur-transactions", syncWiseEurTransactionsToSheet);
-    registerTransactionSync("/cron/sync-wise-gbp-transactions", "sync-wise-gbp-transactions", syncWiseGbpTransactionsToSheet);
     registerTransactionSync("/cron/sync-paypal-transactions", "sync-paypal-transactions", syncPaypalTransactionsToSheet);
     registerTransactionSync("/cron/sync-eurobank-transactions", "sync-eurobank-transactions", syncEurobankBranchTransactionsToSheet);
     registerTransactionSync("/cron/sync-eurobank-ike-transactions", "sync-eurobank-ike-transactions", syncEurobankIkeTransactionsToSheet);
