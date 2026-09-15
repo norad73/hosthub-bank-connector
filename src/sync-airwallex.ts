@@ -1,5 +1,5 @@
-import { config } from "./config.ts";
 import { fetchBalanceActivityReportCsv, isAirwallexConfigured } from "./airwallex.ts";
+import { postSheetsWebhook } from "./sheets-webhook.ts";
 import {
   loadAirwallexTransactionIds,
   rememberAirwallexTransactionIds,
@@ -232,34 +232,17 @@ export async function syncAirwallexTransactionsToSheet(
   sheetTransactionIds?: string[],
   anchorAccountBalance?: number,
 ): Promise<{ transactions: AirwallexSheetRow[]; sheet: Record<string, unknown> }> {
-  const url = config.googleSheetsWebhookUrl;
-  if (!url) throw new Error("Set GOOGLE_SHEETS_WEBHOOK_URL to your Google Apps Script web app URL.");
-
   const cfg = SYNC_CONFIG[currency];
   const transactions = await fetchNewAirwallexTransactions(currency, sinceMs, sheetTransactionIds, anchorAccountBalance);
   if (!transactions.length) {
     return { transactions: [], sheet: { ok: true, action: "skip", reason: cfg.skipReason, added: 0 } };
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: cfg.webhookAction,
-      source: "bankconnector",
-      synced_at: new Date().toISOString(),
-      sinceMs,
-      transactions,
-    }),
+  const sheet = await postSheetsWebhook({
+    action: cfg.webhookAction,
+    sinceMs,
+    transactions,
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Google Sheets webhook ${res.status}: ${text.slice(0, 300)}`);
-  let sheet: Record<string, unknown>;
-  try {
-    sheet = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    throw new Error(`Google Sheets webhook returned non-JSON: ${text.slice(0, 200)}`);
-  }
   rememberAirwallexTransactionIds(currency, transactions.map((t) => t.transactionId));
   return { transactions, sheet };
 }

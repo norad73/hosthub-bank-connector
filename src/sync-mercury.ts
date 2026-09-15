@@ -1,4 +1,4 @@
-import { config } from "./config.ts";
+import { postSheetsWebhook } from "./sheets-webhook.ts";
 import {
   formatMercurySourceAccount,
   formatMercuryStatus,
@@ -90,33 +90,16 @@ export async function fetchNewMercuryTransactions(sinceMs = 0): Promise<MercuryS
 }
 
 export async function syncMercuryTransactionsToSheet(sinceMs = 0): Promise<{ transactions: MercurySheetTransaction[]; sheet: Record<string, unknown> }> {
-  const url = config.googleSheetsWebhookUrl;
-  if (!url) throw new Error("Set GOOGLE_SHEETS_WEBHOOK_URL to your Google Apps Script web app URL.");
-
   const transactions = await fetchNewMercuryTransactions(sinceMs);
   if (!transactions.length) {
     return { transactions: [], sheet: { ok: true, action: "skip", reason: "No new Mercury transactions", added: 0 } };
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "fill-mercury",
-      source: "bankconnector",
-      synced_at: new Date().toISOString(),
-      sinceMs,
-      transactions,
-    }),
+  const sheet = await postSheetsWebhook({
+    action: "fill-mercury",
+    sinceMs,
+    transactions,
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Google Sheets webhook ${res.status}: ${text.slice(0, 300)}`);
-  let sheet: Record<string, unknown>;
-  try {
-    sheet = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    throw new Error(`Google Sheets webhook returned non-JSON: ${text.slice(0, 200)}`);
-  }
   rememberMercuryTransactionIds(transactions.map((t) => t.id));
   return { transactions, sheet };
 }

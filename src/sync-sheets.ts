@@ -17,6 +17,8 @@ import { isWiseConfigured, listWiseBalances, WiseError } from "./wise.ts";
 import { isMercuryConfigured, listMercuryAccounts, MercuryError } from "./mercury.ts";
 import { ebLog } from "./eb-log.ts";
 import { buildSheetBalancePayload } from "./sheet-balances.ts";
+import { listStripeInTransitPayouts } from "./stripe-in-transit.ts";
+import { postSheetsWebhook } from "./sheets-webhook.ts";
 import { fetchRatesToUsd } from "./fx.ts";
 
 export interface BalanceRow {
@@ -435,34 +437,21 @@ export async function refreshBalanceByUid(uid: string): Promise<void> {
 }
 
 export async function syncBalancesToSheet(): Promise<{ rows: BalanceRow[]; sheet: Record<string, unknown> }> {
-  const url = config.googleSheetsWebhookUrl;
-  if (!url) throw new Error("Set GOOGLE_SHEETS_WEBHOOK_URL to your Google Apps Script web app URL.");
-
   const [balanceResult, fx] = await Promise.all([
     fetchAllBalances({ force: true }),
     fetchRatesToUsd(["EUR", "USD", "GBP"]),
   ]);
   const { rows } = balanceResult;
   const payload = buildSheetBalancePayload(rows, fx);
+  const stripeInTransitPayouts = await listStripeInTransitPayouts(payload.date);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "fill",
-      source: "bankconnector",
-      synced_at: new Date().toISOString(),
-      date: payload.date,
-      columns: payload.columns,
-      fxDate: payload.fxDate,
-      eurUsdClose: payload.eurUsdClose,
-    }),
+  const sheet = await postSheetsWebhook({
+    action: "fill",
+    date: payload.date,
+    columns: payload.columns,
+    fxDate: payload.fxDate,
+    eurUsdClose: payload.eurUsdClose,
+    stripeInTransitPayouts,
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Google Sheets webhook ${res.status}: ${text.slice(0, 300)}`);
-  try {
-    return { rows, sheet: JSON.parse(text) as Record<string, unknown> };
-  } catch {
-    throw new Error(`Google Sheets webhook returned non-JSON: ${text.slice(0, 200)}`);
-  }
+  return { rows, sheet };
 }
