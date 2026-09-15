@@ -1,5 +1,5 @@
 // BankConnector — fill the "Balances" and "CC" tabs from live bank data.
-// Script version: 0.4.42 (keep in sync with BankConnector app version)
+// Script version: 0.6.90 (keep in sync with BankConnector app version)
 //
 // Setup: paste ALL bankconnector-*.gs files + Create Custom menu.gs into Apps Script.
 // Menu items are built in Create Custom menu.gs via addAllBankConnectorMenuItems_().
@@ -8,25 +8,29 @@
 const SHEET_NAME = "Balances";
 const CC_SHEET_NAME = "CC";
 
-const COL = {
-  date: 1,
-  mercury: 3,
-  stripe: 4,
-  airwallexUsd: 5,
-  airwallexEur: 6,
-  wiseUsd: 7,
-  wiseEur: 8,
-  paypal: 10,
-  eurobank: 11,
-  viva: 12,
-  revolutEur: 13,
-  revolutUsd: 14,
-  eurobankIke: 15,
-  inTransit: 16,
-  total: 18,
+/** Header labels on row 1 — columns are resolved by text, not fixed index. */
+const BALANCE_HEADERS = {
+  date: "Date",
+  mercury: "Mercury",
+  stripe: "Stripe",
+  airwallexUsd: "Airwallex USD",
+  airwallexEur: "Airwallex EUR",
+  wiseUsd: "Wise (USD)",
+  wiseEur: "Wise (EUR)",
+  paypal: "Paypal",
+  eurobank: "Eurobank",
+  viva: "Viva",
+  eurobankIke: "Eurobank IKE",
+  inTransit: "In transit",
+  total: "TOTAL",
 };
 
-const CC_COL = { date: 1, close: 2 };
+const BALANCE_FILL_KEYS = [
+  "mercury", "stripe", "airwallexUsd", "airwallexEur", "wiseUsd", "wiseEur",
+  "paypal", "eurobank", "viva", "eurobankIke",
+];
+
+const CC_HEADERS = { date: "Date", close: "Close" };
 
 function doGet() {
   return json({
@@ -97,19 +101,44 @@ function fillSheetsImpl_(body) {
   return result;
 }
 
+function findBalancesColumnMap_(sheet) {
+  return bankConnectorFindColumnMap_(sheet, BALANCE_HEADERS);
+}
+
+function findCcColumnMap_(sheet) {
+  return bankConnectorFindColumnMap_(sheet, CC_HEADERS);
+}
+
 function fillBalancesSheetImpl_(body) {
   const sheet = getBalancesSheet_();
+  const colMap = findBalancesColumnMap_(sheet);
+  if (!colMap.date) throw new Error('Balances tab missing "Date" header in row 1');
+  const missing = bankConnectorMissingHeaders_(colMap, BALANCE_HEADERS);
+  const requiredMissing = missing.filter(function (h) {
+    return h !== BALANCE_HEADERS.total && h !== BALANCE_HEADERS.inTransit;
+  });
+  if (requiredMissing.length) {
+    throw new Error("Balances tab missing headers: " + requiredMissing.join(", "));
+  }
+
   const today = body.date || athensDateString_();
-  const target = resolveTargetRow_(sheet, today, COL.date, function (row) {
-    const values = sheet.getRange(row, COL.stripe, row, COL.eurobankIke).getValues()[0];
-    return values.some(function (v) { return v !== "" && v !== null && v !== 0; });
+  const target = resolveTargetRow_(sheet, today, colMap.date, function (row) {
+    return balanceRowIsFilled_(sheet, row, colMap);
   });
 
   log_("Balances target row", target);
 
   if (target.action === "skip") {
+    writeInTransit_(sheet, target.row, colMap, body.inTransit);
     log_("Balances skipped", { reason: target.reason, row: target.row });
-    return { ok: true, action: "skip", reason: target.reason || "Today already filled", row: target.row, date: today };
+    return {
+      ok: true,
+      action: "skip",
+      reason: target.reason || "Today already filled",
+      row: target.row,
+      date: today,
+      inTransitUpdated: Boolean(colMap.inTransit),
+    };
   }
 
   const columns = body.columns;
@@ -118,11 +147,12 @@ function fillBalancesSheetImpl_(body) {
 
   if (target.setDate) {
     copyRowFormat_(sheet, target.templateRow, target.row);
-    sheet.getRange(target.row, COL.date).setValue(today);
+    sheet.getRange(target.row, colMap.date).setValue(today);
   }
 
-  writeBalanceValues_(sheet, target.row, columns);
-  copyTotalFormula_(sheet, target.templateRow, target.row);
+  writeBalanceValues_(sheet, target.row, columns, colMap);
+  writeInTransit_(sheet, target.row, colMap, body.inTransit);
+  copyTotalFormula_(sheet, target.templateRow, target.row, colMap);
 
   return {
     ok: true,
@@ -137,14 +167,19 @@ function fillCcSheetImpl_(body) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CC_SHEET_NAME);
   if (!sheet) return { ok: true, action: "skip", reason: "CC sheet not found" };
 
+  const ccCol = findCcColumnMap_(sheet);
+  if (!ccCol.date || !ccCol.close) {
+    return { ok: true, action: "skip", reason: "CC sheet missing Date or Close header" };
+  }
+
   const rateDate = body.fxDate || body.date || athensDateString_();
   const close = body.eurUsdClose;
   if (close === undefined || close === null) {
     return { ok: true, action: "skip", reason: "No EUR/USD rate in fill request" };
   }
 
-  const target = resolveTargetRow_(sheet, rateDate, CC_COL.date, function (row) {
-    const value = sheet.getRange(row, CC_COL.close).getValue();
+  const target = resolveTargetRow_(sheet, rateDate, ccCol.date, function (row) {
+    const value = sheet.getRange(row, ccCol.close).getValue();
     return value !== "" && value !== null && value !== 0;
   });
 
@@ -159,10 +194,10 @@ function fillCcSheetImpl_(body) {
 
   if (target.setDate) {
     copyRowFormat_(sheet, target.templateRow, target.row);
-    sheet.getRange(target.row, CC_COL.date).setValue(rateDate);
+    sheet.getRange(target.row, ccCol.date).setValue(rateDate);
   }
 
-  sheet.getRange(target.row, CC_COL.close).setValue(close);
+  sheet.getRange(target.row, ccCol.close).setValue(close);
 
   return {
     ok: true,
@@ -216,32 +251,63 @@ function resolveTargetRow_(sheet, today, dateCol, rowIsFilledFn) {
   return { action: "skip", row: lastRow, reason: "Last date is in the future: " + lastDate };
 }
 
-function writeBalanceValues_(sheet, row, columns) {
-  const map = {
-    [COL.stripe]: columns.stripe,
-    [COL.mercury]: columns.mercury,
-    [COL.airwallexUsd]: columns.airwallexUsd,
-    [COL.airwallexEur]: columns.airwallexEur,
-    [COL.wiseUsd]: columns.wiseUsd,
-    [COL.wiseEur]: columns.wiseEur,
-    [COL.paypal]: columns.paypal,
-    [COL.eurobank]: columns.eurobank,
-    [COL.viva]: columns.viva,
-    [COL.eurobankIke]: columns.eurobankIke,
-  };
-  Object.keys(map).forEach(function (col) {
-    const value = map[col];
-    if (value !== undefined && value !== null) {
-      sheet.getRange(row, Number(col)).setValue(value);
-    }
+function balanceRowIsFilled_(sheet, row, colMap) {
+  return BALANCE_FILL_KEYS.some(function (key) {
+    const col = colMap[key];
+    if (!col) return false;
+    const value = sheet.getRange(row, col).getValue();
+    return value !== "" && value !== null && value !== 0;
   });
 }
 
-function copyTotalFormula_(sheet, templateRow, row) {
-  const formula = sheet.getRange(templateRow, COL.total).getFormula();
+function writeBalanceValues_(sheet, row, columns, colMap) {
+  BALANCE_FILL_KEYS.forEach(function (key) {
+    const col = colMap[key];
+    const value = columns[key];
+    if (!col || value === undefined || value === null) return;
+    sheet.getRange(row, col).setValue(value);
+  });
+}
+
+function writeInTransit_(sheet, row, colMap, resolved) {
+  var col = colMap.inTransit;
+  if (!col) return;
+  resolved = resolved || {};
+  var amount = Math.round(Number(resolved.amountUsd) || 0);
+  var cell = sheet.getRange(row, col);
+  if (amount > 0) {
+    cell.setValue(amount);
+    if (resolved.note) cell.setNote(resolved.note);
+    else cell.clearNote();
+  } else {
+    cell.clearContent();
+    cell.clearNote();
+  }
+  log_("In transit", { row: row, amountUsd: amount, source: "bank-api" });
+}
+
+function copyTotalFormula_(sheet, templateRow, row, colMap) {
+  const totalCol = colMap.total;
+  if (!totalCol) return;
+  const formula = sheet.getRange(templateRow, totalCol).getFormula();
   if (formula) {
-    sheet.getRange(row, COL.total).setFormula(formula.replace(new RegExp(templateRow, "g"), String(row)));
+    sheet.getRange(row, totalCol).setFormula(formula.replace(new RegExp(templateRow, "g"), String(row)));
     return;
   }
-  sheet.getRange(row, COL.total).setFormula("=SUM(C" + row + ":Q" + row + ")");
+  const sumCols = BALANCE_FILL_KEYS.map(function (key) { return colMap[key]; }).filter(Boolean).sort(function (a, b) { return a - b; });
+  if (!sumCols.length) return;
+  const startCol = columnLetter_(sumCols[0]);
+  const endCol = columnLetter_(sumCols[sumCols.length - 1]);
+  sheet.getRange(row, totalCol).setFormula("=SUM(" + startCol + row + ":" + endCol + row + ")");
+}
+
+function columnLetter_(col) {
+  let letter = "";
+  let n = col;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
 }

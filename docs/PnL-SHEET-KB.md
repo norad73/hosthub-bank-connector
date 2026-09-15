@@ -1,7 +1,7 @@
 # Hosthub P&L Sheet — Knowledge Base
 
 > **Advisor doc for AI + team.** Update after every P&L change or audit.  
-> **Last analyzed:** 2026-09-15 · **KB version:** 1.58 · **Sheet tab:** `P&L - Running`  
+> **Last analyzed:** 2026-09-15 · **KB version:** 1.59 · **Sheet tab:** `P&L - Running`  
 > **Formula reference:** [`docs/PnL-FORMULAS.md`](PnL-FORMULAS.md) · raw JSON: `docs/pnl-formula-analysis.json`
 
 ---
@@ -848,9 +848,16 @@ that day's payout but is really just a mid-day manual reading (neighbouring dail
 
 ### 13.9 "In transit" (col P) records Stripe payouts at snapshot time
 
-Col P is **not** a standing float or a bank account. It is a manual, snapshot-time bridge for a
+**Balances daily fill is API-only.** Bank columns (Mercury, Wise, …) come from live provider
+APIs. **In transit** is Stripe payouts still `in_transit`/`pending` (not yet in a bank API
+balance). **`paid` payouts are not written to col P** — they are already in the destination
+API figure. Never scan bank tabs. Sep 15 $43,680 was `po_1UFO1G…` (paid, arrival 2026-09-14)
+already inside Wise USD API $194,501; the Wise USD tab was stale (last Stripe credit 08-09-2026)
+so the old tab matcher double-counted TOTAL. Apps Script only writes `body.inTransit` (v0.6.90).
+
+Col P is **not** a standing float or a bank account. It is a snapshot-time bridge for a
 Stripe payout that had already left Stripe but was not yet visible in the destination bank's
-online balance at the moment the row was captured.
+**API** balance at the moment the row was captured.
 
 Of the 29 rows that carry an In transit value, **21 match a Stripe payout amount to the cent**,
 and the row's date equals that payout's `arrival_date`. The remaining 8 are round manual figures
@@ -885,7 +892,7 @@ years and produces false positives.
 (exit 1 with `--only "In transit"`). Added after a dry-run proposed `52,707` for row 877 — the
 *previous* week's payout — immediately after row 877 was cleared.
 
-**Scripts:** `probe-in-transit-column.ts` (is it a float or transient?),
+**Scripts:** `probe-43680-in-transit.ts` (Sep 2026 $43,680 vs Wise API), `probe-in-transit-column.ts` (is it a float or transient?),
 `probe-in-transit-vs-payouts.ts` (values vs payout amounts),
 `probe-eom-in-transit-double-count.ts`, `probe-payout-destination-tabs.ts`,
 `probe-transfer-10k-feb2025.ts` (row 611 transfer pair), `clear-eom-in-transit.ts` (`--row N --write`).
@@ -1168,7 +1175,8 @@ uses **date + amount** (±3 days, ±$0.02), not description alone.
 
 | Date | Change |
 |------|--------|
-| 2026-09-15 | **Webhook 404 / false success fix (v0.6.89)** — `src/sheets-webhook.ts`: POST `redirect: "manual"`, GET echo URL, retry 404/doGet, reject `doGet` help JSON. |
+| 2026-09-15 | **In transit from bank APIs (v0.6.90)** — match Stripe payouts to Wise/Mercury API credits, not bank tabs. Sep 15 $43,680 was `po_1UFO1G…` already in Wise USD API. |
+| 2026-09-15 | **Webhook 404 / false success fix (v0.6.89)** — `src/sheets-webhook.ts`: POST `redirect: "manual"`, GET echo URL, retry 404/doGet, reject `doGet` help JSON. Live on Render `17ca813` (2026-09-15 10:21 Athens). |
 | 2026-09-15 | BankConnector ops: Render CLI v2.28.0 (`Render.CLI`), workspace/service IDs, log commands, webhook URL (clasp **@28**), and why some fills fail (Apps Script ContentService 302/404 / `doGet` false success). |
 | 2026-09-15 | Daily Balances fill cron reset to **19:00 Athens** (`0 16 * * *` UTC). Live schedule had been `0 6 * * *` (09:00 Athens). |
 | 2026-09-15 | Saved full QuickBooks chart of accounts (Consolidated `Con P&L` labels) → [`docs/qb-chart-of-accounts.md`](qb-chart-of-accounts.md). |

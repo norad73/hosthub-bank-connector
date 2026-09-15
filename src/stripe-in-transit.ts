@@ -1,6 +1,8 @@
-// Stripe payouts that left Stripe but may not yet be credited to a bank tab.
+// Stripe payouts that left Stripe but may not yet be in a destination bank API balance.
 import { config } from "./config.ts";
+import { isMercuryConfigured, listMercuryTransactions } from "./mercury.ts";
 import { isStripeConfigured, StripeError } from "./stripe.ts";
+import { isWiseConfigured, listWiseStatementTransactions } from "./wise.ts";
 
 export interface StripeInTransitPayout {
   id: string;
@@ -31,7 +33,50 @@ async function stripeGet(path: string): Promise<Record<string, unknown>> {
   return JSON.parse(text) as Record<string, unknown>;
 }
 
-/** Payout candidates for in-transit resolution (Apps Script matches bank credits). */
+/** Credits from destination bank APIs (Wise / Mercury) — never from sheet tabs. */
+export async function listDestinationApiCredits(asOfDate: string): Promise<{ day: string; amountUsd: number }[]> {
+  const sinceMs = Date.parse(`${asOfDate}T00:00:00Z`) - 21 * 86_400_000;
+  const postedStart = new Date(sinceMs).toISOString().slice(0, 10);
+  const credits: { day: string; amountUsd: number }[] = [];
+
+  if (isWiseConfigured()) {
+    const txs = await listWiseStatementTransactions("USD", sinceMs);
+    for (const t of txs) {
+      if (t.amount <= 0) continue;
+      const day = t.date.slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      credits.push({ day, amountUsd: t.amount });
+    }
+  }
+
+  if (isMercuryConfigured()) {
+    const txs = await listMercuryTransactions({ postedStart, order: "asc" });
+    for (const t of txs) {
+      if (t.amount <= 0) continue;
+      const raw = t.postedAt || t.createdAt;
+      const day = String(raw).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      credits.push({ day, amountUsd: t.amount });
+    }
+  }
+
+  return credits;
+}
+
+export async function resolveStripeInTransit(asOfDate: string): Promise<{
+  amountUsd: number;
+  note: string;
+  items: StripeInTransitPayout[];
+}> {
+  const [payouts, credits] = await Promise.all([
+    listStripeInTransitPayouts(asOfDate),
+    listDestinationApiCredits(asOfDate),
+  ]);
+  const { amountUsd, items } = sumStripeInTransitPayouts(payouts, asOfDate, credits);
+  return { amountUsd, note: formatStripeInTransitNote(items), items };
+}
+
+/** Payouts still at Stripe. `paid` is already in the destination bank API balance. */
 export async function listStripeInTransitPayouts(asOfDate: string): Promise<StripeInTransitPayout[]> {
   if (!isStripeConfigured()) return [];
   const since = Math.floor(Date.parse(`${asOfDate}T00:00:00Z`) / 1000) - 21 * 86_400;
@@ -46,9 +91,7 @@ export async function listStripeInTransitPayouts(asOfDate: string): Promise<Stri
     const arrival = isoDay(p.arrival_date);
     if (dayNum(arrival) > cut) continue;
     if (p.status === "in_transit" || p.status === "pending") {
-      // always include
-    } else if (p.status === "paid") {
-      if (cut - dayNum(arrival) > 3) continue;
+      // still at Stripe — not in a bank API balance yet
     } else continue;
     out.push({
       id: p.id,
@@ -85,7 +128,7 @@ export function sumStripeInTransitPayouts(
   const items = payouts.filter((p) => {
     if (dayNum(p.arrival) > cut) return false;
     if (stripePayoutCredited(p, credits)) return false;
-    return p.status === "in_transit" || p.status === "pending" || p.status === "paid";
+    return p.status === "in_transit" || p.status === "pending";
   });
   const amountUsd = Math.round(items.reduce((s, p) => s + p.amountUsd, 0));
   return { amountUsd, items };

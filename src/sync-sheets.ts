@@ -17,7 +17,7 @@ import { isWiseConfigured, listWiseBalances, WiseError } from "./wise.ts";
 import { isMercuryConfigured, listMercuryAccounts, MercuryError } from "./mercury.ts";
 import { ebLog } from "./eb-log.ts";
 import { buildSheetBalancePayload } from "./sheet-balances.ts";
-import { listStripeInTransitPayouts } from "./stripe-in-transit.ts";
+import { resolveStripeInTransit } from "./stripe-in-transit.ts";
 import { postSheetsWebhook } from "./sheets-webhook.ts";
 import { fetchRatesToUsd } from "./fx.ts";
 
@@ -443,7 +443,7 @@ export async function syncBalancesToSheet(): Promise<{ rows: BalanceRow[]; sheet
   ]);
   const { rows } = balanceResult;
   const payload = buildSheetBalancePayload(rows, fx);
-  const stripeInTransitPayouts = await listStripeInTransitPayouts(payload.date);
+  const inTransit = await resolveStripeInTransit(payload.date);
 
   const sheet = await postSheetsWebhook({
     action: "fill",
@@ -451,7 +451,7 @@ export async function syncBalancesToSheet(): Promise<{ rows: BalanceRow[]; sheet
     columns: payload.columns,
     fxDate: payload.fxDate,
     eurUsdClose: payload.eurUsdClose,
-    stripeInTransitPayouts,
+    inTransit,
   });
   return { rows, sheet };
 }
