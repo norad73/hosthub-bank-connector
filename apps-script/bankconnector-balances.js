@@ -1,5 +1,5 @@
 // BankConnector — fill the "Balances" and "CC" tabs from live bank data.
-// Script version: 0.6.90 (keep in sync with BankConnector app version)
+// Script version: 0.6.91 (keep in sync with BankConnector app version)
 //
 // Setup: paste ALL bankconnector-*.gs files + Create Custom menu.gs into Apps Script.
 // Menu items are built in Create Custom menu.gs via addAllBankConnectorMenuItems_().
@@ -67,7 +67,8 @@ function doPost(e) {
 function fillBalancesSheet() {
   log_("fillBalancesSheet started (menu)");
   try {
-    const result = callBankConnector_("/cron/sync-balances");
+    const payload = callBankConnector_("/cron/prepare-balance-fill");
+    const result = fillSheetsImpl_(payload);
     log_("fillBalancesSheet done", { action: result.action, row: result.row, cc: result.cc });
     try {
       SpreadsheetApp.getUi().alert(formatFillAlert_(result));

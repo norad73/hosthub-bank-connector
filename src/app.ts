@@ -10,7 +10,7 @@ import { verifyPassword } from "./auth.ts";
 import { balancesPage, connectedPage, failedPage, privacyPage, setupPage, siteLoginPage, statusPage, termsPage } from "./pages.ts";
 import { applySetup, setupAvailable } from "./setup.ts";
 import { fetchRatesToUsd } from "./fx.ts";
-import { fetchAllBalances, refreshBalanceByUid, syncBalancesToSheet } from "./sync-sheets.ts";
+import { fetchAllBalances, prepareBalanceFill, refreshBalanceByUid, syncBalancesToSheet } from "./sync-sheets.ts";
 import { athensDate, isoDate } from "./data.ts";
 import { isWiseConfigured } from "./wise.ts";
 import { loadAspspLogos, resolveLogo } from "./logos.ts";
@@ -28,7 +28,7 @@ import { syncEurobankBranchTransactionsToSheet } from "./sync-eurobank.ts";
 import { syncEurobankIkeTransactionsToSheet } from "./sync-eurobank-ike.ts";
 import { syncPaypalTransactionsToSheet } from "./sync-paypal-transactions.ts";
 import { syncVivaTransactionsToSheet } from "./sync-viva-transactions.ts";
-import { syncWiseEurTransactionsToSheet, syncWiseUsdTransactionsToSheet } from "./sync-wise-transactions.ts";
+import { syncWiseEurTransactionsToSheet, syncWiseGbpTransactionsToSheet, syncWiseUsdTransactionsToSheet } from "./sync-wise-transactions.ts";
 
 export function createApp() {
   const log = (msg: string, extra?: unknown) => console.log(`[bank ${new Date().toISOString()}] ${msg}`, extra ?? "");
@@ -269,6 +269,25 @@ export function createApp() {
       }
     });
 
+    app.post("/cron/prepare-balance-fill", async (req, res) => {
+      if (!cronAuth(req, res)) return;
+      try {
+        const prepared = await prepareBalanceFill();
+        log(`prepare-balance-fill: ${prepared.rows.length} row(s) for ${prepared.date}`);
+        res.json({
+          ok: true,
+          date: prepared.date,
+          columns: prepared.columns,
+          fxDate: prepared.fxDate,
+          eurUsdClose: prepared.eurUsdClose,
+          inTransit: prepared.inTransit,
+        });
+      } catch (err) {
+        log("prepare-balance-fill failed", (err as Error).message);
+        res.status(500).json({ error: (err as Error).message });
+      }
+    });
+
     app.post("/cron/sync-balances", async (req, res) => {
       if (!cronAuth(req, res)) return;
       try {
@@ -393,6 +412,7 @@ export function createApp() {
     registerTransactionSync("/cron/sync-cledara-transactions", "sync-cledara-transactions", syncCledaraTransactionsToSheet);
     registerTransactionSync("/cron/sync-wise-usd-transactions", "sync-wise-usd-transactions", syncWiseUsdTransactionsToSheet);
     registerTransactionSync("/cron/sync-wise-eur-transactions", "sync-wise-eur-transactions", syncWiseEurTransactionsToSheet);
+    registerTransactionSync("/cron/sync-wise-gbp-transactions", "sync-wise-gbp-transactions", syncWiseGbpTransactionsToSheet);
     registerTransactionSync("/cron/sync-paypal-transactions", "sync-paypal-transactions", syncPaypalTransactionsToSheet);
     registerTransactionSync("/cron/sync-eurobank-transactions", "sync-eurobank-transactions", syncEurobankBranchTransactionsToSheet);
     registerTransactionSync("/cron/sync-eurobank-ike-transactions", "sync-eurobank-ike-transactions", syncEurobankIkeTransactionsToSheet);

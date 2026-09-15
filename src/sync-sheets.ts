@@ -436,7 +436,14 @@ export async function refreshBalanceByUid(uid: string): Promise<void> {
   await fetchAllBalances({ refreshUid: uid });
 }
 
-export async function syncBalancesToSheet(): Promise<{ rows: BalanceRow[]; sheet: Record<string, unknown> }> {
+export async function prepareBalanceFill(): Promise<{
+  rows: BalanceRow[];
+  date: string;
+  columns: ReturnType<typeof buildSheetBalancePayload>["columns"];
+  fxDate?: string;
+  eurUsdClose?: number;
+  inTransit: Awaited<ReturnType<typeof resolveStripeInTransit>>;
+}> {
   const [balanceResult, fx] = await Promise.all([
     fetchAllBalances({ force: true }),
     fetchRatesToUsd(["EUR", "USD", "GBP"]),
@@ -444,14 +451,25 @@ export async function syncBalancesToSheet(): Promise<{ rows: BalanceRow[]; sheet
   const { rows } = balanceResult;
   const payload = buildSheetBalancePayload(rows, fx);
   const inTransit = await resolveStripeInTransit(payload.date);
-
-  const sheet = await postSheetsWebhook({
-    action: "fill",
+  return {
+    rows,
     date: payload.date,
     columns: payload.columns,
     fxDate: payload.fxDate,
     eurUsdClose: payload.eurUsdClose,
     inTransit,
+  };
+}
+
+export async function syncBalancesToSheet(): Promise<{ rows: BalanceRow[]; sheet: Record<string, unknown> }> {
+  const prepared = await prepareBalanceFill();
+  const sheet = await postSheetsWebhook({
+    action: "fill",
+    date: prepared.date,
+    columns: prepared.columns,
+    fxDate: prepared.fxDate,
+    eurUsdClose: prepared.eurUsdClose,
+    inTransit: prepared.inTransit,
   });
-  return { rows, sheet };
+  return { rows: prepared.rows, sheet };
 }

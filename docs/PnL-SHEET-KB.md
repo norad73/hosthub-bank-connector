@@ -1,7 +1,7 @@
 # Hosthub P&L Sheet — Knowledge Base
 
 > **Advisor doc for AI + team.** Update after every P&L change or audit.  
-> **Last analyzed:** 2026-09-15 · **KB version:** 1.59 · **Sheet tab:** `P&L - Running`  
+> **Last analyzed:** 2026-09-15 · **KB version:** 1.60 · **Sheet tab:** `P&L - Running`  
 > **Formula reference:** [`docs/PnL-FORMULAS.md`](PnL-FORMULAS.md) · raw JSON: `docs/pnl-formula-analysis.json`
 
 ---
@@ -505,7 +505,7 @@ and must be updated in the same change.
 
 **Spreadsheet:** `1fpNA3NDMp11MtJXRE3hJ3VE4jCklWDDladULmlZerEc` · tab **`Balances`**
 
-**Daily fill:** Render cron `bankconnector-sync-balances` POSTs `/cron/refresh-balances` then `/cron/sync-balances` on the web service. The web service then POSTs `action: "fill"` to the Apps Script webhook.
+**Daily fill:** Render cron POSTs `/cron/refresh-balances` then `/cron/sync-balances` (webhook write). **Sheet menu** must **not** call `/cron/sync-balances` — that deadlocks (menu holds the spreadsheet lock while Render POSTs back to `doPost` → echo **404**). Menu uses `/cron/prepare-balance-fill` and writes locally via `fillSheetsImpl_`.
 
 | Item | Value |
 |------|--------|
@@ -513,7 +513,7 @@ and must be updated in the same change.
 | **Web** | `bankconnector` · `srv-dagi9915efls73anctm0` · https://bankconnector.onrender.com |
 | **Cron** | `bankconnector-sync-balances` · `crn-dafvgf8u01pc73c75070` |
 | **Schedule** | **UTC.** Target **19:00 Europe/Athens** → **`0 16 * * *`** while EEST (UTC+3). Live dashboard had drifted to `0 6 * * *` (09:00 Athens); reset 2026-09-15. After late-October DST, `16:00` UTC becomes **18:00** Athens unless moved to `0 17 * * *`. `render.yaml` already has `0 16 * * *` — do not sync the dashboard back to 06:00. |
-| **Webhook** | `GOOGLE_SHEETS_WEBHOOK_URL` = `https://script.google.com/macros/s/AKfycbzN80dtSLdENv2DdEGOkR-cJDKqPCBjVJzjkKKUlgacBfTryWNpDml0ShxpgTNHzVtsGg/exec` (same in `render.yaml` / `src/sheets-config.ts`). Clasp **@28** — `v0.6.47 in-transit 3-day window`. Other deployments (@24 v0.5.7, @25 v0.6.44, @HEAD) are stale; do not point Render at them. GET returns `doGet` help JSON — that is **not** a fill. |
+| **Webhook** | `GOOGLE_SHEETS_WEBHOOK_URL` = `https://script.google.com/macros/s/AKfycbzN80dtSLdENv2DdEGOkR-cJDKqPCBjVJzjkKKUlgacBfTryWNpDml0ShxpgTNHzVtsGg/exec` (same in `render.yaml` / `src/sheets-config.ts`). Clasp **@29** — `v0.6.90 in-transit from bank APIs`. Other deployments (@24 v0.5.7, @25 v0.6.44, @HEAD) are stale; do not point Render at them. GET returns `doGet` help JSON — that is **not** a fill. |
 
 **Render CLI (this machine):** winget package `Render.CLI` **v2.28.0** (`render.exe`). Auth: `render whoami` → `alex@hosthub.com`. New terminals need a PATH refresh after install.
 
@@ -1175,6 +1175,7 @@ uses **date + amount** (±3 days, ±$0.02), not description alone.
 
 | Date | Change |
 |------|--------|
+| 2026-09-15 | **Menu fill deadlock (v0.6.91)** — sheet menu now `/cron/prepare-balance-fill` + local write. Calling `/cron/sync-balances` from the menu 404s the webhook (lock). |
 | 2026-09-15 | **In transit from bank APIs (v0.6.90)** — match Stripe payouts to Wise/Mercury API credits, not bank tabs. Sep 15 $43,680 was `po_1UFO1G…` already in Wise USD API. |
 | 2026-09-15 | **Webhook 404 / false success fix (v0.6.89)** — `src/sheets-webhook.ts`: POST `redirect: "manual"`, GET echo URL, retry 404/doGet, reject `doGet` help JSON. Live on Render `17ca813` (2026-09-15 10:21 Athens). |
 | 2026-09-15 | BankConnector ops: Render CLI v2.28.0 (`Render.CLI`), workspace/service IDs, log commands, webhook URL (clasp **@28**), and why some fills fail (Apps Script ContentService 302/404 / `doGet` false success). |
