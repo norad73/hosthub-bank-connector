@@ -12,7 +12,8 @@ var CLEDARA_SPEC = bankConnectorMakeFillHandlers_({
   compositeKnownFields: ["origDate", "description", "amount"],
   uniqueIdFrom: function (tx) { return [tx.origDate, tx.description, tx.amount]; },
   buildPayload: function (sheet, colMap, payload) {
-    payload.knownDateAmountKeys = bankConnectorLoadDateAmountKeys_(sheet, colMap.origDate, colMap.amount);
+    payload.knownDateAmountKeys = bankConnectorLoadDateAmountKeys_(sheet, colMap.origDate, colMap.amount)
+      .concat(bankConnectorLoadRepaymentPeriodKeys_(sheet, colMap.description));
     return payload;
   },
   writeRows: function (sheet, startRow, colMap, transactions) {

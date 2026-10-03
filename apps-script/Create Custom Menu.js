@@ -1,5 +1,5 @@
 // Single onOpen() for this spreadsheet — all menu actions in one place.
-// Script version: 0.5.1 (keep in sync with BankConnector app version)
+// Script version: 0.5.10 (keep in sync with BankConnector app version)
 //
 // Bank transaction menu items follow spreadsheet tab order (not "… match" sheets).
 

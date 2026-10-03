@@ -1,5 +1,5 @@
 // Shared helpers for bank transaction tabs.
-// Script version: 0.5.7
+// Script version: 0.5.9
 
 function bankConnectorFindColumnMap_(sheet, yellowHeaders, aliases) {
   aliases = aliases || {};
@@ -173,6 +173,62 @@ function bankConnectorWriteUniqueIds_(sheet, startRow, endRow, transactions, spe
   });
 }
 
+/** Keep `Bank match` rows 1:1 with the bank tab when new transactions are appended. */
+function bankConnectorSyncMatchAppend_(bankSheet, startRow, endRow) {
+  var matchName = bankSheet.getName() + " match";
+  var matchSheet = bankSheet.getParent().getSheetByName(matchName);
+  if (!matchSheet) return;
+
+  var bankUidCol = bankConnectorFindUniqueIdColumn_(bankSheet);
+  var matchUidCol = bankConnectorFindUniqueIdColumn_(matchSheet);
+  var uids = sheetRect_(bankSheet, startRow, bankUidCol, endRow, bankUidCol).getValues();
+  var count = endRow - startRow + 1;
+  if (count <= 0) return;
+
+  if (matchSheet.getMaxRows() < endRow) {
+    matchSheet.insertRowsAfter(matchSheet.getMaxRows(), endRow - matchSheet.getMaxRows());
+  }
+
+  var templateRow = startRow > 2 ? startRow - 1 : 2;
+  bankConnectorCopyRowFormats_(matchSheet, templateRow, startRow, count);
+  var lastCol = matchSheet.getLastColumn();
+  if (lastCol > matchUidCol) {
+    sheetRect_(matchSheet, templateRow, matchUidCol + 1, templateRow, lastCol).copyTo(
+      sheetRect_(matchSheet, startRow, matchUidCol + 1, endRow, lastCol),
+      SpreadsheetApp.CopyPasteType.PASTE_NORMAL,
+      false,
+    );
+    bankConnectorClearCopiedCategories_(matchSheet, templateRow, startRow, endRow, lastCol);
+  }
+
+  sheetRect_(matchSheet, startRow, matchUidCol, endRow, matchUidCol).setValues(uids);
+}
+
+/** Category cells are typed per row; only formulas in those columns may be copied down. */
+function bankConnectorClearCopiedCategories_(matchSheet, templateRow, startRow, endRow, lastCol) {
+  var headers = sheetRect_(matchSheet, 1, 1, 1, lastCol).getValues()[0];
+  var templateFormulas = sheetRect_(matchSheet, templateRow, 1, templateRow, lastCol).getFormulas()[0];
+  headers.forEach(function (header, i) {
+    if (!/category|confidence/i.test(String(header))) return;
+    if (templateFormulas[i]) return;
+    sheetRect_(matchSheet, startRow, i + 1, endRow, i + 1).clearContent();
+  });
+}
+
+function bankConnectorLoadRepaymentPeriodKeys_(sheet, descCol) {
+  if (!descCol) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var values = sheet.getRange(2, descCol, lastRow, descCol).getValues();
+  var keys = [];
+  values.forEach(function (row) {
+    var text = String(row[0] || "");
+    var m = text.match(/Repayment\s*:\s*(\d{4}-\d{2}-\d{2}\s*-\s*\d{4}-\d{2}-\d{2})/i);
+    if (m) keys.push("rep:" + m[1].replace(/\s+/g, " "));
+  });
+  return keys;
+}
+
 function bankConnectorLoadDateAmountKeys_(sheet, dateCol, amountCol) {
   if (!dateCol || !amountCol) return [];
   var lastRow = sheet.getLastRow();
@@ -254,6 +310,7 @@ function bankConnectorMakeFillHandlers_(spec) {
     var endRow = startRow + transactions.length - 1;
     bankConnectorWriteUniqueIds_(sheet, startRow, endRow, transactions, spec);
     spec.writeRows(sheet, startRow, colMap, transactions);
+    bankConnectorSyncMatchAppend_(sheet, startRow, endRow);
     log_(spec.logPrefix + " impl done", { added: transactions.length, startRow: startRow });
     return {
       ok: true,

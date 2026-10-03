@@ -1,5 +1,5 @@
 // BankConnector — fill the "Balances" and "CC" tabs from live bank data.
-// Script version: 0.6.94 (keep in sync with BankConnector app version)
+// Script version: 0.6.96 (keep in sync with BankConnector app version)
 //
 // Setup: paste ALL bankconnector-*.gs files + Create Custom menu.gs into Apps Script.
 // Menu items are built in Create Custom menu.gs via addAllBankConnectorMenuItems_().
