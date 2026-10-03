@@ -1,4 +1,4 @@
-import { round2, sessionName, simplifyTransaction } from "./data.ts";
+import { accountDisplayName, round2, sessionName, simplifyTransaction } from "./data.ts";
 import { eb, type Transaction } from "./enablebanking.ts";
 import type { EurobankSheetTransaction } from "./sheet-eurobank.ts";
 import { filterNewByKnownIds, postTransactionsToSheet } from "./sync-to-sheet.ts";
@@ -8,6 +8,8 @@ export interface EurobankSyncConfig {
   sessionLabel: string;
   webhookAction: string;
   skipReason: string;
+  /** Read only the session account with this display name; otherwise the first stored account. */
+  accountName?: string;
 }
 
 function parseGreekAmount(value: string): number {
@@ -42,12 +44,13 @@ function mapEurobankTransaction(t: Transaction): EurobankSheetTransaction {
   };
 }
 
-async function fetchEnableBankingTransactions(sessionLabel: string, sinceMs: number): Promise<EurobankSheetTransaction[]> {
+async function fetchEnableBankingTransactions(sessionLabel: string, sinceMs: number, accountName?: string): Promise<EurobankSheetTransaction[]> {
   const s = store();
   const session = s.sessions().find((item) => sessionName(item).toLowerCase() === sessionLabel.toLowerCase());
   if (!session) throw new Error(`No Enable Banking session labeled "${sessionLabel}"`);
-  const account = s.accounts().find((a) => a.session_id === session.id);
-  if (!account) throw new Error(`No account linked for "${sessionLabel}"`);
+  const accounts = s.accounts().filter((a) => a.session_id === session.id);
+  const account = accountName ? accounts.find((a) => accountDisplayName(a) === accountName) : accounts[0];
+  if (!account) throw new Error(accountName ? `No account "${accountName}" linked for "${sessionLabel}"` : `No account linked for "${sessionLabel}"`);
 
   const dateFrom = sinceMs > 0
     ? new Date(sinceMs).toISOString().slice(0, 10)
@@ -69,7 +72,7 @@ export async function syncEurobankTransactionsToSheet(
   knownIds: string[],
 ): Promise<{ transactions: EurobankSheetTransaction[]; sheet: Record<string, unknown> }> {
   const known = new Set(knownIds);
-  const raw = await fetchEnableBankingTransactions(cfg.sessionLabel, sinceMs);
+  const raw = await fetchEnableBankingTransactions(cfg.sessionLabel, sinceMs, cfg.accountName);
   const transactions = filterNewByKnownIds(raw, known, sinceMs, txInstant, (row) => [
     `${row.bookingDate}|${row.description}|${row.amount}`,
   ]);

@@ -6,6 +6,7 @@ export async function syncEurobankIkeTransactionsToSheet(sinceMs: number, knownI
       sessionLabel: "Eurobank IKE",
       webhookAction: "fill-eurobank-ike",
       skipReason: "No new Eurobank IKE transactions",
+      accountName: "02",
     },
     sinceMs,
     knownIds,
