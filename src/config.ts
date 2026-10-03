@@ -85,6 +85,9 @@ export const config = {
   vivaAccountsBase: (env.VIVA_ACCOUNTS_API_BASE ?? "https://accounts.vivapayments.com").replace(/\/+$/, ""),
   vivaAccountClientId: env.VIVA_ACCOUNT_CLIENT_ID ?? env.VIVA_CLIENT_ID ?? "",
   vivaAccountClientSecret: env.VIVA_ACCOUNT_CLIENT_SECRET ?? env.VIVA_CLIENT_SECRET ?? "",
+  /** Viva Data Services API (issued by Viva, not in Settings → API Access). CAS-05120514. */
+  vivaDataServicesClientId: env.VIVA_DATA_SERVICES_CLIENT_ID ?? "",
+  vivaDataServicesClientSecret: env.VIVA_DATA_SERVICES_CLIENT_SECRET ?? "",
   /** Airwallex API (scoped key). https://www.airwallex.com/docs/developer-tools/api/manage-api-keys */
   airwallexApiBase: (env.AIRWALLEX_API_BASE ?? "https://api.airwallex.com").replace(/\/+$/, ""),
   airwallexClientId: env.AIRWALLEX_CLIENT_ID ?? "",

@@ -80,6 +80,10 @@ export function isVivaAccountTransactionsConfigured(): boolean {
   return Boolean(config.vivaAccountClientId && config.vivaAccountClientSecret);
 }
 
+export function isVivaDataServicesConfigured(): boolean {
+  return Boolean(config.vivaDataServicesClientId && config.vivaDataServicesClientSecret);
+}
+
 async function vivaGet(path: string): Promise<unknown> {
   const res = await fetch(`${config.vivaApiBase}${path}`, {
     headers: {
@@ -114,22 +118,40 @@ export interface VivaAccountTransaction {
   balance?: number;
 }
 
-let cachedAccountToken: { token: string; expiresAt: number } | undefined;
+/** Labels for Search rows that omit description (CAS-05120514). */
+const VIVA_SUBTYPE_LABEL: Record<number, string> = {
+  4: "Fee - Money out to IBAN",
+  5: "Fee - Sales commission",
+  25: "Money in from IBAN",
+  30: "Money out to IBAN",
+  83: "Clearance - Cards",
+  100: "Card purchase",
+  140: "Wallet2Wallet Transfer",
+  164: "Money out to IBAN",
+  165: "Fee - Money out to IBAN",
+};
 
-async function vivaAccountAccessToken(): Promise<string> {
-  if (!isVivaAccountTransactionsConfigured()) {
+/** Holds / releases — not cash ledger rows. Pair with CardPurchase etc. */
+const VIVA_SKIP_SUBTYPES = new Set([
+  101, 102, 103, 105, 106, 107, 109, 110, 111, 113, 114, 115, 143, 144, 147, 148, 157, 158, 162, 163, 198, 199,
+]);
+
+let cachedDataServicesToken: { token: string; expiresAt: number } | undefined;
+
+async function vivaDataServicesAccessToken(): Promise<string> {
+  if (!isVivaDataServicesConfigured()) {
     throw new VivaError(
       401,
-      "Account Transactions credentials missing. Set VIVA_ACCOUNT_CLIENT_ID and VIVA_ACCOUNT_CLIENT_SECRET (Viva → Settings → API Access → Account Transactions credentials).",
+      "Data Services credentials missing. Set VIVA_DATA_SERVICES_CLIENT_ID and VIVA_DATA_SERVICES_CLIENT_SECRET (issued by Viva, CAS-05120514).",
     );
   }
-  if (cachedAccountToken && cachedAccountToken.expiresAt > Date.now() + 60_000) {
-    return cachedAccountToken.token;
+  if (cachedDataServicesToken && cachedDataServicesToken.expiresAt > Date.now() + 60_000) {
+    return cachedDataServicesToken.token;
   }
   const res = await fetch(`${config.vivaAccountsBase}/connect/token`, {
     method: "POST",
     headers: {
-      Authorization: basicAuth(config.vivaAccountClientId, config.vivaAccountClientSecret),
+      Authorization: basicAuth(config.vivaDataServicesClientId, config.vivaDataServicesClientSecret),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
@@ -138,92 +160,120 @@ async function vivaAccountAccessToken(): Promise<string> {
   if (!res.ok) throw new VivaError(res.status, text);
   const data = JSON.parse(text) as { access_token?: string; expires_in?: number };
   if (!data.access_token) throw new VivaError(res.status, text);
-  cachedAccountToken = {
+  cachedDataServicesToken = {
     token: data.access_token,
     expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
   };
   return data.access_token;
 }
 
-async function vivaAccountGet(path: string, retried = false): Promise<unknown> {
-  const token = await vivaAccountAccessToken();
+async function vivaDataServicesPost(path: string, body: Record<string, unknown>, retried = false): Promise<unknown> {
+  const token = await vivaDataServicesAccessToken();
   const res = await fetch(`${config.vivaAccountApiBase}${path}`, {
+    method: "POST",
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify(body),
   });
   const text = await res.text();
   if (!res.ok) {
     if (res.status === 401 && !retried) {
-      cachedAccountToken = undefined;
-      return vivaAccountGet(path, true);
+      cachedDataServicesToken = undefined;
+      return vivaDataServicesPost(path, body, true);
     }
     throw new VivaError(res.status, text);
   }
   return text ? JSON.parse(text) : {};
 }
 
-function extractVivaTransactionPage(data: unknown): { items: Record<string, unknown>[]; totalPages: number } {
-  if (Array.isArray(data)) return { items: data, totalPages: 1 };
+function extractVivaTransactionPage(data: unknown): { items: Record<string, unknown>[]; hasNext: boolean } {
+  if (Array.isArray(data)) return { items: data, hasNext: false };
   const obj = data as Record<string, unknown>;
-  const items = Array.isArray(obj.data)
+  const items = (Array.isArray(obj.data)
     ? obj.data
     : Array.isArray(obj.transactions)
       ? obj.transactions
-      : [];
-  return { items, totalPages: Math.max(1, Number(obj.totalPages ?? 1)) };
+      : []) as Record<string, unknown>[];
+  const links = obj.links as { next?: string | null } | undefined;
+  return { items, hasNext: Boolean(links?.next) };
 }
 
-async function listVivaAccountTransactionsPage(
+async function listVivaDataServicesPage(
   start: Date,
   end: Date,
   walletId: number | undefined,
   page: number,
-): Promise<{ items: Record<string, unknown>[]; totalPages: number }> {
+): Promise<{ items: Record<string, unknown>[]; hasNext: boolean }> {
   const params = new URLSearchParams({
-    date_from: start.toISOString().slice(0, 10),
-    date_to: end.toISOString().slice(0, 10),
-    page: String(page),
+    Page: String(page),
+    PageSize: "200",
+    OrderBy: "Descending",
   });
-  if (walletId) params.set("walletId", String(walletId));
-  const data = await vivaAccountGet(`/walletaccounts/v1/transactions?${params}`);
+  const body: Record<string, unknown> = {
+    DateFrom: start.toISOString(),
+    DateTo: end.toISOString(),
+  };
+  if (walletId) body.WalletId = walletId;
+  const data = await vivaDataServicesPost(`/dataservices/v2/accounttransactions/Search?${params}`, body);
   return extractVivaTransactionPage(data);
 }
 
 export async function listVivaAccountTransactions(sinceMs = 0, walletId?: number): Promise<VivaAccountTransaction[]> {
-  if (!isVivaAccountTransactionsConfigured()) return [];
+  if (!isVivaDataServicesConfigured()) return [];
   const end = new Date();
   const start = sinceMs > 0 ? new Date(sinceMs) : new Date(end.getTime() - 120 * 86_400_000);
   const seen = new Set<string>();
   const rows: VivaAccountTransaction[] = [];
   let page = 1;
-  let totalPages = 1;
-  do {
-    const batch = await listVivaAccountTransactionsPage(start, end, walletId, page);
-    totalPages = batch.totalPages;
+  let hasNext = true;
+  while (hasNext && page <= 50) {
+    const batch = await listVivaDataServicesPage(start, end, walletId, page);
+    hasNext = batch.hasNext;
     for (const raw of batch.items) {
+      if (raw.isAuthorization === true) continue;
+      if (VIVA_SKIP_SUBTYPES.has(Number(raw.subTypeId ?? raw.SubTypeId))) continue;
+      const currency = Number(raw.currencyCode);
+      if (Number.isFinite(currency) && currency !== 978) continue;
       const tx = normalizeVivaTransaction(raw);
       if (!tx || seen.has(tx.id)) continue;
       seen.add(tx.id);
       rows.push(tx);
     }
     page += 1;
-  } while (page <= totalPages);
+    if (!batch.items.length) break;
+  }
   return rows;
 }
 
-function normalizeVivaTransaction(raw: Record<string, unknown>): VivaAccountTransaction | null {
+function vivaDescription(raw: Record<string, unknown>): string {
+  const explicit = pickString(raw, "userDescription", "description", "internalDescription");
+  if (explicit) return explicit.trim();
+  const counterpart = pickString(raw, "counterPart", "name");
+  const subTypeId = Number(raw.subTypeId ?? raw.SubTypeId);
+  const labeled = Number.isFinite(subTypeId) ? VIVA_SUBTYPE_LABEL[subTypeId] : undefined;
+  if (labeled && counterpart && (subTypeId === 4 || subTypeId === 30 || subTypeId === 140 || subTypeId === 164 || subTypeId === 165)) {
+    return `${labeled} - ${counterpart}`;
+  }
+  return (counterpart || labeled || "").trim();
+}
+
+export function normalizeVivaTransaction(raw: Record<string, unknown>): VivaAccountTransaction | null {
   const id = String(raw.accountTransactionId ?? raw.walletTransactionId ?? raw.transactionId ?? raw.id ?? "").trim();
   if (!id) return null;
   const amount = Number(raw.amount ?? raw.signedAmount);
   if (!Number.isFinite(amount)) return null;
+  const description = vivaDescription(raw);
+  const balanceRaw = raw.targetAvailable ?? raw.targetAmount;
+  const balance = balanceRaw !== undefined && balanceRaw !== null && balanceRaw !== "" ? Number(balanceRaw) : undefined;
   return {
     id,
     created: String(raw.created ?? raw.createdDate ?? raw.transactionDate ?? ""),
     valueDate: typeof raw.valueDate === "string" ? raw.valueDate : undefined,
-    description: String(raw.userDescription ?? raw.description ?? raw.internalDescription ?? raw.counterPart ?? raw.name ?? "").trim(),
+    description,
     amount,
-    balance: raw.targetAmount !== undefined ? Number(raw.targetAmount) : undefined,
+    balance: balance !== undefined && Number.isFinite(balance) ? balance : undefined,
   };
 }
