@@ -13,8 +13,8 @@ export interface EurobankSheetTransaction {
   bookingDate: string;
   valueDate: string;
   description: string;
-  amount: number;
-  balance?: number;
+  amount: string;
+  balance?: string;
   fxRate?: number;
 }
 

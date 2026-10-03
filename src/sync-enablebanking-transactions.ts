@@ -1,4 +1,4 @@
-import { accountDisplayName, round2, sessionName, simplifyTransaction } from "./data.ts";
+import { accountDisplayName, formatGreekAmount, round2, sessionName, simplifyTransaction } from "./data.ts";
 import { eb, type Transaction } from "./enablebanking.ts";
 import type { EurobankSheetTransaction } from "./sheet-eurobank.ts";
 import { filterNewByKnownIds, postTransactionsToSheet } from "./sync-to-sheet.ts";
@@ -39,8 +39,8 @@ function mapEurobankTransaction(t: Transaction): EurobankSheetTransaction {
     bookingDate: toSheetDate(simple.date),
     valueDate: toSheetDate(simple.value_date ?? simple.date),
     description: [simple.description, simple.counterparty].filter(Boolean).join(" — ") || simple.counterparty || "",
-    amount: simple.amount,
-    balance: simple.balance_after,
+    amount: formatGreekAmount(simple.amount),
+    balance: simple.balance_after !== undefined ? formatGreekAmount(simple.balance_after) : undefined,
   };
 }
 

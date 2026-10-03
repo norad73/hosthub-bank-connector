@@ -111,3 +111,15 @@ export function daysAgo(n: number): string {
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** "-1.904,93" — the Greek bank tabs parse amounts as text with this format. */
+export function formatGreekAmount(n: number): string {
+  const [int, dec] = Math.abs(round2(n)).toFixed(2).split(".");
+  return `${n < 0 && round2(n) !== 0 ? "-" : ""}${int.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec}`;
+}
+
+/** UTC midnight for "d/m/yyyy" or "dd/mm/yyyy"; 0 if unparsable. */
+export function dayMonthYearToMs(text: string): number {
+  const m = String(text).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : 0;
+}

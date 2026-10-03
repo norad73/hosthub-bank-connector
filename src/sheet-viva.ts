@@ -12,8 +12,8 @@ export interface VivaSheetTransaction {
   transactionDate: string;
   valueDate: string;
   description: string;
-  origAmount: number;
-  balance?: number;
+  origAmount: string;
+  balance?: string;
   fxRate?: number;
 }
 

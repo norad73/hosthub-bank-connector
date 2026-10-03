@@ -1,3 +1,4 @@
+import { dayMonthYearToMs, formatGreekAmount } from "./data.ts";
 import { isVivaDataServicesConfigured, listVivaAccountTransactions } from "./viva.ts";
 import type { VivaSheetTransaction } from "./sheet-viva.ts";
 import { filterNewByKnownIds, postTransactionsToSheet } from "./sync-to-sheet.ts";
@@ -11,8 +12,7 @@ function toVivaDate(iso: string): string {
 }
 
 function txInstant(tx: VivaSheetTransaction): number {
-  const ms = Date.parse(String(tx.transactionDate || tx.valueDate));
-  return Number.isFinite(ms) ? ms : 0;
+  return dayMonthYearToMs(tx.transactionDate || tx.valueDate);
 }
 
 export async function syncVivaTransactionsToSheet(sinceMs: number, knownIds: string[]) {
@@ -22,13 +22,15 @@ export async function syncVivaTransactionsToSheet(sinceMs: number, knownIds: str
     );
   }
   const known = new Set(knownIds);
-  const raw = (await listVivaAccountTransactions(sinceMs)).map((t): VivaSheetTransaction => ({
+  const fetched = await listVivaAccountTransactions(sinceMs);
+  fetched.sort((a, b) => (Date.parse(a.created) || 0) - (Date.parse(b.created) || 0));
+  const raw = fetched.map((t): VivaSheetTransaction => ({
     id: t.id,
     transactionDate: toVivaDate(t.created),
     valueDate: t.valueDate ? toVivaDate(t.valueDate) : toVivaDate(t.created),
     description: t.description,
-    origAmount: t.amount,
-    balance: t.balance,
+    origAmount: formatGreekAmount(t.amount),
+    balance: t.balance !== undefined ? formatGreekAmount(t.balance) : undefined,
   }));
   const transactions = filterNewByKnownIds(raw, known, sinceMs, txInstant, (row) => [
     `${row.transactionDate}|${row.description}|${row.origAmount}`,
