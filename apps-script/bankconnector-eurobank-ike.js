@@ -25,7 +25,7 @@ var EUROBANK_IKE_SPEC = bankConnectorMakeFillHandlers_({
     return bankConnectorDateToMsDefault_(value);
   },
   writeRows: function (sheet, startRow, colMap, transactions) {
-    EUROBANK_SPEC.writeRows(sheet, startRow, colMap, transactions);
+    bankConnectorWriteEurobankRows_(sheet, startRow, colMap, transactions);
   },
 });
 
