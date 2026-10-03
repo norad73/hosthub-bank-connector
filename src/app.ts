@@ -17,7 +17,7 @@ import { loadAspspLogos, resolveLogo } from "./logos.ts";
 import { VERSION } from "./version.ts";
 import { seedBalanceCacheForLabel } from "./seed-cache.ts";
 import { ebLog } from "./eb-log.ts";
-import { probeEnableBankingSessions, readEbDebugLogTail, summarizeSessionCreation } from "./investigate-eb.ts";
+import { probeEnableBankingSessions, probeEnableBankingTransactions, readEbDebugLogTail, summarizeSessionCreation } from "./investigate-eb.ts";
 import { buildSheetBalancePayload } from "./sheet-balances.ts";
 import { fetchBalanceActivityReportCsv, listAirwallexFinancialTransactions } from "./airwallex.ts";
 import { syncAirwallexEurTransactionsToSheet } from "./sync-airwallex-eur.ts";
@@ -185,6 +185,16 @@ export function createApp() {
       res.json({ ok: true, label, probes, logPath: "logs/eb-debug.jsonl", logTail: readEbDebugLogTail() });
     } catch (err) {
       res.status(500).json({ ok: false, error: (err as Error).message, logTail: readEbDebugLogTail() });
+    }
+  });
+
+  app.get("/debug/eb-transactions", async (req, res) => {
+    const label = String(req.query.label ?? "Eurobank IKE");
+    const from = String(req.query.from ?? "2026-08-31");
+    try {
+      res.json({ ok: true, ...(await probeEnableBankingTransactions(label, from)) });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: (err as Error).message });
     }
   });
 
