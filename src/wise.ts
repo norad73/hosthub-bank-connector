@@ -102,8 +102,10 @@ function wiseMoney(raw: { value?: number | string; currency?: string } | undefin
   return Number.isFinite(n) ? n : 0;
 }
 
+export type WiseCurrency = "USD" | "EUR" | "GBP";
+
 export async function listWiseStatementTransactions(
-  currency: "USD" | "EUR",
+  currency: WiseCurrency,
   sinceMs = 0,
 ): Promise<WiseStatementTransaction[]> {
   if (!isWiseConfigured()) return [];

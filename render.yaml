@@ -21,7 +21,7 @@ services:
       - key: CRON_SECRET
         generateValue: true
       - key: GOOGLE_SHEETS_WEBHOOK_URL
-        value: https://script.google.com/macros/s/AKfycbzMTw0tY0QaLoHXEHdeXaA4WVdWgesy4xDgTkFSYNgiQx7iC4VM1KcU_b_HeSgO32semQ/exec
+        value: https://script.google.com/macros/s/AKfycbzN80dtSLdENv2DdEGOkR-cJDKqPCBjVJzjkKKUlgacBfTryWNpDml0ShxpgTNHzVtsGg/exec
       - key: VIVA_MERCHANT_ID
         sync: false
       - key: VIVA_API_KEY
@@ -29,6 +29,10 @@ services:
       - key: VIVA_ACCOUNT_CLIENT_ID
         sync: false
       - key: VIVA_ACCOUNT_CLIENT_SECRET
+        sync: false
+      - key: VIVA_DATA_SERVICES_CLIENT_ID
+        sync: false
+      - key: VIVA_DATA_SERVICES_CLIENT_SECRET
         sync: false
       - key: AIRWALLEX_CLIENT_ID
         sync: false

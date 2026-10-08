@@ -1,7 +1,7 @@
 # Hosthub P&L Sheet — Knowledge Base
 
 > **Advisor doc for AI + team.** Update after every P&L change or audit.  
-> **Last analyzed:** 2026-09-15 · **KB version:** 1.60 · **Sheet tab:** `P&L - Running`  
+> **Last analyzed:** 2026-10-08 · **KB version:** 1.74 · **Sheet tab:** `P&L - Running`  
 > **Formula reference:** [`docs/PnL-FORMULAS.md`](PnL-FORMULAS.md) · raw JSON: `docs/pnl-formula-analysis.json`
 
 ---
@@ -22,7 +22,8 @@
 |----------|-----|-----|
 | **Bank balances + transactions** | `1fpNA3NDMp11MtJXRE3hJ3VE4jCklWDDladULmlZerEc` | `Balances` tab → row 393 actuals; per-bank tabs → EOM reconciliation (§13); `* match` tabs → bank flow audit |
 | **QuickBooks exports** | same P&L workbook | tabs `quickbooks-data-us`, `quickbooks-data-ike`, `QB` |
-| **Consolidated QB (API)** | `1K3bPCxsKouyf_z4KpjpPcxnr21L9YkHv-ZzpLdU-W1M` | Bound Apps Script **QB consolidation script** writes `US P&L` / `GR P&L` / BS / txns. P&L workbook `CQB-autorefresh` IMPORTRANGEs `Con P&L`. **Months are not inserted by hand** — see below. |
+| **Consolidated QB (API)** | `1K3bPCxsKouyf_z4KpjpPcxnr21L9YkHv-ZzpLdU-W1M` | Bound Apps Script **QB consolidation script** (`1y9xN-TRIRhYH7Hu-8loLMJXrkl8jZbFGbvBBvXxqZPwJB7TNDnEK7kyo`) writes `US P&L` / `GR P&L` / BS / txns. Clasp home: `C:\Projects\Google Apps Scripts\Quickbooks updater\`. `Con P&L` / `Con BS` col B = **Company** (`US` / `GR` / `US & GR`). Transaction tabs: Company after Account. P&L workbook `CQB-autorefresh` IMPORTRANGEs `Con P&L!A:Z`. **Months are not inserted by hand** — see below. |
+| **P&L CQB tabs** | same P&L workbook | `CQB-autorefresh` = live chart (col A indented Account, col B Company, months `Jan 2025`). `CQB` = curated tab P&L formulas read: col A label (no indent), col B account code or US-QB INDEX, col C+ `INDEX/MATCH` from `CQB-autorefresh` by `TRIM` name + month. **Insert new AUTO accounts:** bound script **Update PnL from Quickbooks** (`1kmucO_yBurzjc5ajesdqZnlZax8CIuZBtB1f8AOfPBNmGU9fjKmoRFqf`), clasp `C:\Projects\Google Apps Scripts\Update-PnL-from-Quickbooks\`, menu **CQB → Preview / Insert missing categories**. Matches by leading account code so `6509 Sales` ≠ insert when CQB already has `6509 Sales Contractors`; comma vs period (`6824` / `6846`) is the same account. |
 
 **How `US P&L` gets a new month:** `QuickBooks` menu → **Refresh US P&L** (or nightly `refreshAll`). `Pull data from QB.gs` calls QBO `ProfitAndLoss` with `summarize_column_by=Month`, `start_date=2025-01-01`, **`end_date` = last day of the previous calendar month**. The script then rewrites the whole tab as values (0 formulas) and injects `YYYY Total` / `YTD YYYY`. So **Sep 2026 appears on the first October refresh**, not during September. Triggers: `refreshAll` (~06:27 EEST), plus `updateCcMonthlyTab` / `updateCcDailyTab`.
 
@@ -471,6 +472,15 @@ and must be updated in the same change.
 
 | Date | Change |
 |------|--------|
+| 2026-09-15 | **CQB-autorefresh colors** — IMPORTRANGE does not copy Con P&L fills. Copied the same 26 category rows (rev `#d9ead3` / exp `#f4cccc`). `color-cqb-autorefresh-from-con.ts --write`. |
+| 2026-09-15 | **DO403** — `P&L - Running` Expense cell now `INDEX/MATCH` CQB `"Total Expenses"` on the same month as row 5 (`2026-08` → $178,129). Was `=DO232` ($168,032). `set-do403-cqb-total-expenses.ts --write`. |
+| 2026-09-15 | **Con P&L header colors** — Already-colored category rows (was `#cfe2f3`): revenue `#d9ead3`, expenses `#f4cccc`. Applied on `Con P&L`; `Pull data from QB.js` uses the same split so US/GR refresh + consolidate keep it. `recolor-con-pnl-headers.ts --write`. |
+| 2026-09-15 | **CQB expense totals** — One row, no double-count: **215 Total Expenses**. Top-level Total* that nest into it: 66, 72, 89, 100, 127, 179, 189, 195, 199, 203. That set still misses **67 6060** and leaves **204–214**. Nested subtotals (78, 87, 96, 99, 109, 117, 121, 126, 134, 143, 152, 160, 167, 171, 178) must not be added with their parent. **225 Total Other Expenses** is below the line. |
+| 2026-09-15 | **CQB missing categories** — GAS `Insert CQB missing categories.js` in Update PnL from Quickbooks (`1kmucO_…RFqf`). Menu **CQB → Preview / Insert**. Identity = leading account code; skip `Last refreshed` footer. Today: 0 new accounts; `6509 Sales` is already `6509 Sales Contractors`; `6824`/`6846` differ only by comma vs period. |
+| 2026-09-15 | **Con Transactions col A** — `Company` (`US` or `GR`) is the first column again. |
+| 2026-09-15 | **Txn sort** — US / GR / Con Transactions are sorted by **Created** (ascending) on sync and on Consolidate Transactions. |
+| 2026-09-15 | **Company column** — `Con P&L` / `Con BS` col B is `US` / `GR` / `US & GR` (account exists on that company tab); row fills from col A. US/GR/Con Transactions: Company sits after Account. |
+| 2026-09-15 | **QB clasp home** — bound project `1y9xN-TRIRhYH7Hu-8loLMJXrkl8jZbFGbvBBvXxqZPwJB7TNDnEK7kyo` lives in `C:\Projects\Google Apps Scripts\Quickbooks updater\` (not this repo). `clasp pull` / `push` from that folder. QBO secrets stay in Script Properties. |
 | 2026-09-14 | **Consolidated QB `US P&L` months** — new columns come from bound script `Pull data from QB.gs` (menu **Refresh US P&L** / nightly `refreshAll`). Date range is Jan 2025 → **end of last month**; current month is never written. Probe: `probe-us-pnl-months.ts`. |
 | 2026-09-14 | **`Charts` tab** — Pro MRR restored to darker logo teal `#07A682` (rebuild for the orange line had crushed it to `#047960`). |
 | 2026-09-14 | **Viva in Cash based P&L totals** — row **171** `SUM(158:170)` and row **263** `SUM(250:262)` on all **144** month columns (`fix-pnl-viva-totals.ts --write`). Rows 389–391 now include Viva inflows/outflows. |
@@ -685,6 +695,9 @@ self-check that they agree. `pickBalCol` selects col 8; that is safe. Note there
 | `probe-us-pnl-months.ts` | Inspect Consolidated QB `US P&L` headers/formulas/refresh stamp |
 | `probe-external-sheet.ts [id] [gid] [--list]` | List/sample any workbook we have OAuth access to |
 | `probe-pnl-qb-links.ts` | How `P&L - Running` / `CQB` link to the Consolidated QB workbook |
+| `recolor-con-pnl-headers.ts [--write]` | Recolor already-filled Con P&L category rows (rev `#d9ead3` / exp `#f4cccc`) |
+| `color-cqb-autorefresh-from-con.ts [--write]` | Copy those Con P&L fills onto `CQB-autorefresh` (IMPORTRANGE has no format) |
+| `set-do403-cqb-total-expenses.ts [--write]` | Set `P&L - Running` DO403 to CQB Total Expenses by month header |
 
 ### 13.5 Known bug: stale formula row references
 
@@ -1100,11 +1113,11 @@ Viva credential sets are **not interchangeable**:
 | **Balances** | Merchant ID + API Key (Basic Auth) | `GET /api/wallets` | Works |
 | **Wallet list** | Account Transactions OAuth | `GET /merchants/v1/wallets` | Works (200) — wallets + **balances only** |
 | **Ledger movements (wrong API)** | Account Transactions OAuth + `walletaccounts` | `GET /walletaccounts/v1/transactions` | 404 / 403 — token has no `walletaccounts` |
-| **Ledger movements (correct)** | **Data Services API credentials** (issued by Viva, not in Settings → API Access) | `POST /dataservices/v2/accounttransactions/Search` | **401** with Account Transactions token |
+| **Ledger movements (correct)** | **Data Services API credentials** (issued by Viva; on Render as `VIVA_DATA_SERVICES_CLIENT_ID` / `_SECRET`) | `POST /dataservices/v2/accounttransactions/Search` | **Wired v0.7.11.** Token scopes `biservices:datafileapi` + `merchantapi`. Page is **1-based**. |
 
 Fill Viva needs ledger rows (Money out to IBAN, Wallet2Wallet, fees). Support first pointed at `/merchants/v1/wallets` (CAS-05120514); live probe: **4 wallets**, no txn fields. They then named the Search endpoint and said Data Services creds are required (Viva provisions them).
 
-**Do not switch the sync to `/merchants/v1/wallets`.** Do not implement Search until Viva issues Data Services credentials — current OAuth token returns **401**. Official note: [Data Services API](https://developer.viva.com/apis-for-payments/data-services/) access is requested from Viva, not self-generated.
+**Do not switch the sync to `/merchants/v1/wallets`.** Fill Viva uses Data Services Search (v0.7.11): `DateFrom`/`DateTo`, `Page` ≥ 1, `PageSize` 200, `OrderBy=Descending`. Response `{ data, links.next }`. Live 90-day pull: **206** rows. Fields: `accountTransactionId`, `amount`, `counterPart`, `subTypeId`, `targetAvailable`, `userDescription` (usually empty) — no `description`. We use counterpart / subtype label. Skip `isAuthorization`, non-EUR, and reserve/unreserve subtypes (101–103, …). Official note: [Data Services API](https://developer.viva.com/apis-for-payments/data-services/).
 
 ### 13.17 Cledara — card funding, repayments, sync
 
@@ -1175,6 +1188,8 @@ uses **date + amount** (±3 days, ±$0.02), not description alone.
 
 | Date | Change |
 |------|--------|
+| 2026-10-08 | **FX fallback (v0.7.15)** — if Frankfurter `/latest` fails (Oct 6 partial Balances fill), walk back up to 10 ECB dates, then **`data/fx-rates.json`** last good rates so EUR columns + CC `eurUsdClose` still write. |
+| 2026-09-16 | KB §13.16 — **Fill Viva wired to Data Services Search** (v0.7.11). Live probe: token 200 (`biservices:datafileapi` + `merchantapi`); `POST /dataservices/v2/accounttransactions/Search` 200 with `DateFrom`/`DateTo`, 1-based `Page`. Account Transactions token still 401 on this call. |
 | 2026-09-15 | **Menu fill deadlock (v0.6.91)** — sheet menu now `/cron/prepare-balance-fill` + local write. Calling `/cron/sync-balances` from the menu 404s the webhook (lock). |
 | 2026-09-15 | **In transit from bank APIs (v0.6.90)** — match Stripe payouts to Wise/Mercury API credits, not bank tabs. Sep 15 $43,680 was `po_1UFO1G…` already in Wise USD API. |
 | 2026-09-15 | **Webhook 404 / false success fix (v0.6.89)** — `src/sheets-webhook.ts`: POST `redirect: "manual"`, GET echo URL, retry 404/doGet, reject `doGet` help JSON. Live on Render `17ca813` (2026-09-15 10:21 Athens). |

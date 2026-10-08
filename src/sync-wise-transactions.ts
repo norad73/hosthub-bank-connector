@@ -1,5 +1,6 @@
 import { listWiseStatementTransactions } from "./wise.ts";
 import type { WiseEurSheetTransaction } from "./sheet-wise-eur.ts";
+import type { WiseGbpSheetTransaction } from "./sheet-wise-gbp.ts";
 import type { WiseUsdSheetTransaction } from "./sheet-wise-usd.ts";
 import {
   formatWiseDateDash,
@@ -69,6 +70,20 @@ export async function syncWiseUsdTransactionsToSheet(sinceMs: number, knownIds: 
     return { transactions: [], sheet: { ok: true, action: "skip", reason: "No new Wise USD transactions", added: 0 } };
   }
   return postTransactionsToSheet("fill-wise-usd", transactions, sinceMs);
+}
+
+function mapWiseGbp(raw: Awaited<ReturnType<typeof listWiseStatementTransactions>>[number]): WiseGbpSheetTransaction {
+  return mapWiseUsd(raw);
+}
+
+export async function syncWiseGbpTransactionsToSheet(sinceMs: number, knownIds: string[]) {
+  const known = new Set(knownIds);
+  const raw = (await listWiseStatementTransactions("GBP", sinceMs)).map(mapWiseGbp);
+  const transactions = filterNewByKnownIds(raw, known, sinceMs, (tx) => wiseInstantMs(tx.wiseDatetime || tx.wiseDate));
+  if (!transactions.length) {
+    return { transactions: [], sheet: { ok: true, action: "skip", reason: "No new Wise GBP transactions", added: 0 } };
+  }
+  return postTransactionsToSheet("fill-wise-gbp", transactions, sinceMs);
 }
 
 export async function syncWiseEurTransactionsToSheet(sinceMs: number, knownIds: string[]) {

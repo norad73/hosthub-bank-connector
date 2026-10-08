@@ -22,6 +22,15 @@ test("buildSheetBalanceColumns maps sources to sheet columns in USD", () => {
   assert.equal(cols.eurobankIke, 10829);
 });
 
+test("Mercury column uses currentBalance not negative available", () => {
+  const mercuryRows: BalanceRow[] = [
+    { date: "2026-08-31", source: "mercury", account: "Checking", uid: "m1", currency: "USD", available: 467, booked: 467 },
+    { date: "2026-08-31", source: "mercury", account: "Treasury", uid: "m2", currency: "USD", available: -3006, booked: 0 },
+  ];
+  const cols = buildSheetBalanceColumns(mercuryRows, fx);
+  assert.equal(cols.mercury, 467);
+});
+
 test("buildSheetBalancePayload includes EUR/USD close for CC tab", () => {
   const payload = buildSheetBalancePayload(rows, fx, "2026-09-09");
   assert.equal(payload.fxDate, "2026-09-08");

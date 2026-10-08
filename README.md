@@ -26,7 +26,9 @@ npm run dev
 
 ## Apps Script (clasp)
 
-Linked to project **Bank transactions** (spreadsheet `1fpNA3NDMp11MtJXRE3hJ3VE4jCklWDDladULmlZerEc`).
+Other Hosthub clasp projects live in [`C:\Projects\Google Apps Scripts`](../Google%20Apps%20Scripts) — one folder per sheet (`Quickbooks updater`, `Bank transactions`, etc.). Do not add new clasp projects here.
+
+This repo’s `apps-script/` is the Bank transactions webhook/menu code. Linked to spreadsheet `1fpNA3NDMp11MtJXRE3hJ3VE4jCklWDDladULmlZerEc`.
 
 ```bash
 clasp login          # once per machine (already done here)

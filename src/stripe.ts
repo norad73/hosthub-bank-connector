@@ -69,3 +69,13 @@ export async function listStripeBalances(): Promise<StripeBalance[]> {
   }
   return [...byCurrency.values()].filter((b) => b.available !== 0 || b.pending !== 0);
 }
+
+/** USD available + pending (matches Balances Stripe col convention). */
+export async function stripeUsdTotalNow(): Promise<number> {
+  const rows = await listStripeBalances();
+  const usd = rows.find((b) => b.currency === "USD");
+  if (!usd) return 0;
+  return Math.round((usd.available + usd.pending) * 100) / 100;
+}
+
+/** Month-end history comes from the Reporting API — see `stripe-reports.ts`. */

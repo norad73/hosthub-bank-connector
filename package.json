@@ -1,6 +1,6 @@
 {
   "name": "bankconnector",
-  "version": "0.6.96",
+  "version": "0.7.15",
   "description": "Daily bank balance sync to Google Sheets via Enable Banking, Viva, Airwallex, Stripe, and PayPal",
   "license": "MIT",
   "type": "module",

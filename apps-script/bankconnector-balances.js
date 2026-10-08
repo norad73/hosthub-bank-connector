@@ -1,5 +1,5 @@
 // BankConnector — fill the "Balances" and "CC" tabs from live bank data.
-// Script version: 0.6.96 (keep in sync with BankConnector app version)
+// Script version: 0.6.97 (keep in sync with BankConnector app version)
 //
 // Setup: paste ALL bankconnector-*.gs files + Create Custom menu.gs into Apps Script.
 // Menu items are built in Create Custom menu.gs via addAllBankConnectorMenuItems_().
@@ -179,6 +179,9 @@ function fillCcSheetImpl_(body) {
     return { ok: true, action: "skip", reason: "No EUR/USD rate in fill request" };
   }
 
+  const gapFill = fillCcGapDays_(sheet, ccCol, rateDate, close, body.date || athensDateString_());
+  if (gapFill) return gapFill;
+
   const target = resolveTargetRow_(sheet, rateDate, ccCol.date, function (row) {
     const value = sheet.getRange(row, ccCol.close).getValue();
     return value !== "" && value !== null && value !== 0;
@@ -207,6 +210,43 @@ function fillCcSheetImpl_(body) {
     date: rateDate,
     close: close,
   };
+}
+
+/**
+ * ECB publishes no rate on weekends/holidays, but bank tabs VLOOKUP every calendar day.
+ * Append each missing day after the last CC row up to today: days before the ECB rate date
+ * carry the previous close, the rate date and later carry the new close (Friday → Sat/Sun).
+ * Returns null when the last CC row is not before today (normal path handles it).
+ */
+function fillCcGapDays_(sheet, ccCol, rateDate, close, today) {
+  const lastRow = findLastDateRow_(sheet, ccCol.date);
+  if (lastRow < 2) return null;
+  const lastDate = toIsoDate_(sheet.getRange(lastRow, ccCol.date).getValue());
+  const lastClose = sheet.getRange(lastRow, ccCol.close).getValue();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDate) || lastDate >= today || lastClose === "" || lastClose === null) return null;
+
+  const rows = [];
+  for (let day = ccNextIsoDay_(lastDate); day <= today && rows.length < 31; day = ccNextIsoDay_(day)) {
+    rows.push({ date: day, close: day >= rateDate ? close : lastClose });
+  }
+  if (!rows.length) return null;
+
+  rows.forEach(function (row, i) {
+    const r = lastRow + 1 + i;
+    copyRowFormat_(sheet, lastRow, r);
+    sheet.getRange(r, ccCol.date).setValue(row.date);
+    sheet.getRange(r, ccCol.close).setValue(row.close);
+  });
+  log_("CC gap days written", { fromRow: lastRow + 1, rows: rows });
+
+  const last = rows[rows.length - 1];
+  return { ok: true, action: "appended", row: lastRow + rows.length, date: last.date, close: last.close, added: rows.length };
+}
+
+function ccNextIsoDay_(iso) {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function getBalancesSheet_() {
