@@ -1188,6 +1188,8 @@ uses **date + amount** (±3 days, ±$0.02), not description alone.
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | **Airwallex 403 on login (v0.7.17)** — Render job showed failure at `/authentication/login`, not BAR. Retry login **without** `x-login-as` when account id yields 403; drop `x-login-as` on Bearer requests. If still 403, rotate `AIRWALLEX_CLIENT_ID` / `AIRWALLEX_API_KEY` on Render or fix `AIRWALLEX_ACCOUNT_ID` (account id, not org id). |
+| 2026-10-08 | **Row 908 (2026-10-06) repaired** — EUR USD cols interpolated from Oct 5 + Oct 7 Balances rows (bank tabs had no Oct 6 txn rows); TOTAL recalc. Script: `scripts/repair-balances-2026-10-06.ts`. |
 | 2026-10-08 | **FX fallback (v0.7.15)** — if Frankfurter `/latest` fails (Oct 6 partial Balances fill), walk back up to 10 ECB dates, then **`data/fx-rates.json`** last good rates so EUR columns + CC `eurUsdClose` still write. |
 | 2026-09-16 | KB §13.16 — **Fill Viva wired to Data Services Search** (v0.7.11). Live probe: token 200 (`biservices:datafileapi` + `merchantapi`); `POST /dataservices/v2/accounttransactions/Search` 200 with `DateFrom`/`DateTo`, 1-based `Page`. Account Transactions token still 401 on this call. |
 | 2026-09-15 | **Menu fill deadlock (v0.6.91)** — sheet menu now `/cron/prepare-balance-fill` + local write. Calling `/cron/sync-balances` from the menu 404s the webhook (lock). |

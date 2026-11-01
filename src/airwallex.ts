@@ -58,16 +58,14 @@ function normalizeBalance(raw: Record<string, unknown>): AirwallexBalance | unde
   };
 }
 
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.token;
-
+async function loginForToken(useLoginAs: boolean): Promise<{ token: string; expiresAt: number }> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Content-Length": "0",
     "x-client-id": config.airwallexClientId,
     "x-api-key": config.airwallexApiKey,
   };
-  if (config.airwallexAccountId) headers["x-login-as"] = config.airwallexAccountId;
+  if (useLoginAs && config.airwallexAccountId) headers["x-login-as"] = config.airwallexAccountId;
 
   const res = await fetch(`${config.airwallexApiBase}/api/v1/authentication/login`, {
     method: "POST",
@@ -80,8 +78,33 @@ async function getAccessToken(): Promise<string> {
   const data = JSON.parse(text) as { token?: string; expires_at?: string };
   if (!data.token) throw new AirwallexError(res.status, text);
   const expiresAt = data.expires_at ? Date.parse(data.expires_at) : Date.now() + 30 * 60_000;
-  cachedToken = { token: data.token, expiresAt };
-  return data.token;
+  return { token: data.token, expiresAt };
+}
+
+async function getAccessToken(): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.token;
+
+  const accountId = config.airwallexAccountId;
+  const attempts: boolean[] = accountId ? [true, false] : [false];
+  let lastErr: AirwallexError | undefined;
+
+  for (const useLoginAs of attempts) {
+    try {
+      const { token, expiresAt } = await loginForToken(useLoginAs);
+      cachedToken = { token, expiresAt };
+      if (accountId && !useLoginAs) {
+        console.log("[bank] airwallex: login OK without x-login-as (check AIRWALLEX_ACCOUNT_ID on Render)");
+      }
+      return token;
+    } catch (err) {
+      if (err instanceof AirwallexError && err.status === 403 && useLoginAs && attempts.length > 1) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr ?? new AirwallexError(403, "login failed");
 }
 
 async function authHeaders(opts?: { contentType?: string; accept?: string }): Promise<Record<string, string>> {
@@ -91,7 +114,6 @@ async function authHeaders(opts?: { contentType?: string; accept?: string }): Pr
     Authorization: `Bearer ${token}`,
   };
   if (opts?.contentType) headers["Content-Type"] = opts.contentType;
-  if (config.airwallexAccountId) headers["x-login-as"] = config.airwallexAccountId;
   return headers;
 }
 
