@@ -1,6 +1,6 @@
 /** One-off: test Airwallex login paths (no secrets printed). Run: node src/diagnose-airwallex-auth.ts */
-import { config, isAirwallexConfigured } from "./config.ts";
-import { fetchBalanceActivityReportCsv, listAirwallexBalances } from "./airwallex.ts";
+import { config } from "./config.ts";
+import { fetchBalanceActivityReportCsv, isAirwallexConfigured, listAirwallexBalances } from "./airwallex.ts";
 
 console.log(
   JSON.stringify(
