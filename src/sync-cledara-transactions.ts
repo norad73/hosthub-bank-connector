@@ -1,5 +1,6 @@
 import { isCledaraConfigured, listCledaraTransactions } from "./cledara.ts";
 import { loadCledaraTransactionIds, rememberCledaraTransactionIds } from "./cledara-sync-store.ts";
+import { isExportMode } from "./export-mode.ts";
 import type { CledaraSheetTransaction } from "./sheet-cledara.ts";
 import { postTransactionsToSheet } from "./sync-to-sheet.ts";
 import { uniqueId } from "./unique-id.ts";
@@ -87,7 +88,7 @@ export async function syncCledaraTransactionsToSheet(
     })
     .sort((a, b) => txInstant(a) - txInstant(b));
 
-  const transactions = pending.slice(0, MAX_NEW_PER_RUN);
+  const transactions = isExportMode() ? pending : pending.slice(0, MAX_NEW_PER_RUN);
   const repaymentsInBatch = transactions.filter((t) => /^repayment/i.test(t.description)).length;
   const repaymentsFromApi = apiRows.filter((t) => t.isRepayment).length;
   if (!transactions.length) {

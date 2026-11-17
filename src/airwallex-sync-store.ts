@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config.ts";
+import { isExportMode } from "./export-mode.ts";
 export type AirwallexCurrency = "USD" | "EUR";
 
 interface AirwallexSyncStore {
@@ -28,11 +29,12 @@ function readStore(currency: AirwallexCurrency): AirwallexSyncStore {
 }
 
 export function loadAirwallexTransactionIds(currency: AirwallexCurrency): Set<string> {
+  if (isExportMode()) return new Set();
   return new Set(readStore(currency).transactionIds);
 }
 
 export function rememberAirwallexTransactionIds(currency: AirwallexCurrency, ids: string[]): void {
-  if (!ids.length) return;
+  if (!ids.length || isExportMode()) return;
   const store = readStore(currency);
   const set = new Set(store.transactionIds);
   for (const id of ids) set.add(id);

@@ -2,6 +2,7 @@
 // script.googleusercontent.com/macros/echo URL. Node fetch `redirect: "follow"`
 // can turn that into GET /exec (doGet help, false success) or a 404 HTML page.
 import { config } from "./config.ts";
+import { isExportMode } from "./export-mode.ts";
 
 export type SheetsFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -60,6 +61,7 @@ export async function postSheetsWebhook(
   body: Record<string, unknown>,
   opts?: { url?: string; fetch?: SheetsFetch; retries?: number; sleepMs?: number },
 ): Promise<Record<string, unknown>> {
+  if (isExportMode()) return { ok: true, action: "export", added: 0 };
   const url = opts?.url ?? config.googleSheetsWebhookUrl;
   if (!url) throw new Error("Set GOOGLE_SHEETS_WEBHOOK_URL to your Google Apps Script web app URL.");
 

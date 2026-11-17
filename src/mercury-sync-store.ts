@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config.ts";
+import { isExportMode } from "./export-mode.ts";
 
 interface MercurySyncStore {
   transactionIds: string[];
@@ -25,6 +26,7 @@ function readStore(): MercurySyncStore {
 
 /** Load all known Mercury transaction ids once (O(1) lookups via Set). */
 export function loadMercuryTransactionIds(): Set<string> {
+  if (isExportMode()) return new Set();
   return new Set(readStore().transactionIds);
 }
 
@@ -33,7 +35,7 @@ export function hasMercuryTransactionId(id: string, known?: Set<string>): boolea
 }
 
 export function rememberMercuryTransactionIds(ids: string[]): void {
-  if (!ids.length) return;
+  if (!ids.length || isExportMode()) return;
   const store = readStore();
   const set = new Set(store.transactionIds);
   for (const id of ids) set.add(id);

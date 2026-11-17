@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config.ts";
+import { isExportMode } from "./export-mode.ts";
 
 interface CledaraSyncStore {
   transactionIds: string[];
@@ -24,11 +25,12 @@ function readStore(): CledaraSyncStore {
 }
 
 export function loadCledaraTransactionIds(): Set<string> {
+  if (isExportMode()) return new Set();
   return new Set(readStore().transactionIds);
 }
 
 export function rememberCledaraTransactionIds(ids: string[]): void {
-  if (!ids.length) return;
+  if (!ids.length || isExportMode()) return;
   const store = readStore();
   const set = new Set(store.transactionIds);
   for (const id of ids) set.add(id);

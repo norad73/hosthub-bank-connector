@@ -1,7 +1,7 @@
 # Hosthub P&L Sheet — Knowledge Base
 
 > **Advisor doc for AI + team.** Update after every P&L change or audit.  
-> **Last analyzed:** 2026-10-08 · **KB version:** 1.74 · **Sheet tab:** `P&L - Running`  
+> **Last analyzed:** 2026-11-02 · **KB version:** 1.89 · **Project:** 0.8.0 · **Sheet tab:** `P&L - Running`  
 > **Formula reference:** [`docs/PnL-FORMULAS.md`](PnL-FORMULAS.md) · raw JSON: `docs/pnl-formula-analysis.json`
 
 ---
@@ -68,21 +68,29 @@ Use **month-end** rentals, never a SUM of daily snapshots (that ~10× inflates t
 |------|---------|-------|
 | 8–147 | **REVENUE** | Paying users, churn, MRR, recognised revenue |
 | 150–154 | Revenue by source (Stripe) | monthlies, annuals, single invoices |
-| **155–156** | **Other sources / Loans** | Non-bank revenue sources; **loans tracked here** |
-| **157–171** | **BANK INFLOWS** | Per-bank operating inflows → **171 = TOTAL** |
+| **157–158** | **Other sources / Loans** | Loans are row **158** |
+| **159–173** | **BANK INFLOWS** | Per-bank operating inflows → **173 = TOTAL** (160–172, Viva is 172) |
 | 172–179 | Pro MRR projection | |
 | 181–192 | Revenue by type (actual) | Mirrors txn categories incl. **188 Income - Loans** |
 | 193–201 | Revenue by product (accrual) | |
 | 206–232 | Accrual costs from QB | |
 | 236–247 | Actual costs | Payroll, travel, marketing, etc. |
-| **249–263** | **BANK OUTFLOWS** | Per-bank outflows → **263 = TOTAL** |
-| 265–384 | Segment metrics, unit economics | |
-| **388–394** | **Cash reconciliation** | See §4 — critical for balance checks |
+| **244–258** | **BANK OUTFLOWS** | Per-bank outflows → **258 = TOTAL** (245–257, Viva is 257) |
+| 260–384 | Segment metrics, unit economics | |
+| **388–393** | **Cash reconciliation** | 389 inflows, 390 outflows, 391 expected, **392 cash at EoM**, 393 actual−expected |
 | 397–403 | Accrual P&L / balance | Separate from cash reconciliation |
 | 417–432 | QB COGS/S&M/G&A/R&D totals | |
 | 433+ | Normalized salaries, projections | |
 
 Machine-readable row list: `docs/pnl-analysis.json` (regenerate via §8).
+
+**Row 84 Revenue churn rate** (from **2026-03**, col DJ): `=Churned_MRR / prior Total MRR` (`={COL}80/{PREV}111`). Older months (e.g. DG–DH) divide by prior **Standard_MRR** (row 107). It does **not** include downgrades. Downgrades are **row 128 Contraction_MRR**. Dollar sum already exists on **row 136** (`=130+128`, and 130 = 80). A rate that includes downgrades is `(80+128) / prior 111`. **Nov 2026 (DR84)** is a placeholder `=DF84*0.7`, not a live month.
+
+**Rows 86–87 CAC** (fixed 2026-11-02, cols **P–DQ**): blended = `(prior MARKETING row 436 + prior Sales salaries row 431) / (New_Paying_Users + Reactivations + prior Early_Conversions)`. Fully loaded = `(prior 436 + prior SALARIES NORMALIZED row 427 × 30%) / same denominator`. The `#REF!` was the deleted marketing-total and payroll-total rows. **DR** (Nov 2026) is a separate projection and was left as-is. Col **P** row 86 has no Reactivations term.
+
+**Rows 93–94** (fixed 2026-11-02): row **94** registration acq cost = `MARKETING row 436 / Registrations row 36` (was deleted row 208). Row **93** is the trailing-12 vs prior-12 change in row **91** trial acq cost; it showed `#REF!` because row 91 cols **W–CU** (Aug 2018–Dec 2024) still pointed at deleted QB marketing rows. Those months are now `436 / New_Trials`. From **CV** (Jan 2025) row 91 stays `(S&M row 225 − Marketing Payroll row 214) / New_Trials`.
+
+**Rows 132–133** (inserted 2026-11-02, cols **P–DQ**). Gross revenue churn = `(Churned_MRR 80 + Contraction_MRR 128) / prior (Standard+Pro+Affiliates+website builder)`. Net revenue churn = `(80 + 128 − Expansion_MRR 126) / same prior MRR`. Sources are the db/manual rows, not the copies on 111 and 130. Reactivations are not in either rate. Every row below 131 moved down by 2.
 
 ---
 
@@ -472,6 +480,10 @@ and must be updated in the same change.
 
 | Date | Change |
 |------|--------|
+| 2026-11-02 | **Rows 132–133 revenue churn (v0.7.24)** — gross = (churned + contraction) / prior MRR components; net also subtracts expansion. Rows below 131 shifted +2. Inflow total is **173**, outflow total **258**, loans **158**, cash at EoM **392**. |
+| 2026-11-02 | **Rows 93–94 `#REF!` (v0.7.23)** — row 94 is marketing row **434** / registrations. Row 93 follows row 91; Aug 2018–Dec 2024 trial acq cost now uses row 434 / new trials because QB S&M rows start at Jan 2025. |
+| 2026-11-02 | **Rows 86–87 `#REF!` (v0.7.22)** — CAC numerators pointed at deleted rows. Restored cols P–DQ: marketing total is **434**, sales salaries **429**, salaries normalized **425**. DR (Nov 2026 projection) unchanged. |
+| 2026-11-02 | **Row 84 revenue churn** — from Mar 2026 the rate is churned MRR (row 80) / prior **Total MRR** (row 111). Earlier months use prior Standard MRR (row 107). Downgrades are row 128 and are omitted; row 134 is the dollar sum only. DR84 (Nov 2026) is `=DF84*0.7`. |
 | 2026-09-15 | **CQB-autorefresh colors** — IMPORTRANGE does not copy Con P&L fills. Copied the same 26 category rows (rev `#d9ead3` / exp `#f4cccc`). `color-cqb-autorefresh-from-con.ts --write`. |
 | 2026-09-15 | **DO403** — `P&L - Running` Expense cell now `INDEX/MATCH` CQB `"Total Expenses"` on the same month as row 5 (`2026-08` → $178,129). Was `=DO232` ($168,032). `set-do403-cqb-total-expenses.ts --write`. |
 | 2026-09-15 | **Con P&L header colors** — Already-colored category rows (was `#cfe2f3`): revenue `#d9ead3`, expenses `#f4cccc`. Applied on `Con P&L`; `Pull data from QB.js` uses the same split so US/GR refresh + consolidate keep it. `recolor-con-pnl-headers.ts --write`. |
@@ -514,6 +526,8 @@ and must be updated in the same change.
 ## 13. Balances workbook (bank reconciliation)
 
 **Spreadsheet:** `1fpNA3NDMp11MtJXRE3hJ3VE4jCklWDDladULmlZerEc` · tab **`Balances`**
+
+**cfo.hosthub.com** pulls nightly via `GET /cron/balances` and `POST /cron/export-transactions` (read-only, never writes the sheet).
 
 **Daily fill:** Render cron POSTs `/cron/refresh-balances` then `/cron/sync-balances` (webhook write). **Sheet menu** must **not** call `/cron/sync-balances` — that deadlocks (menu holds the spreadsheet lock while Render POSTs back to `doPost` → echo **404**). Menu uses `/cron/prepare-balance-fill` and writes locally via `fillSheetsImpl_`.
 
@@ -591,6 +605,19 @@ When Balances disagrees with bank data, **bank tab wins** — not `all banks` tx
 
 **Verify logic** (`scripts/bank-tab-balance.ts`): prefer exact `DATE` header; month-end = latest date in month, **last sheet row on that date** (same-day txns matter).
 
+**Airwallex USD `balance diff`:** AA = running signed net (W, `calculated progressive balance`) minus **Account Balance** through row 204, minus **Available Balance** through row 1710, then minus **Account Balance** from row 1711. Same-timestamp card rows can sit up to 3 places off the order the wallet applied them; once the running sum leaves zero it stays offset. `scripts/fix-airwallex-usd-balance-order.ts` reorders columns A–U only (V–AA formulas stay on the row; `Airwallex USD match` VLOOKUPs by UniqueID and is not 1:1 — 1749 match rows vs 1813 bank rows). After the 2026-11-01 reorder, AA is **0 through row 402**. **Correct Order** (Y) is the sequence `1..n` on data rows (`Y2=1`); renumber it after any insert or reorder. Those three jumps were missing Wise deposits. Inserted from the balance report (`scripts/backfill-airwallex-usd-wise-8k.ts`) on **2025-04-16**, **2025-04-29**, and **2025-05-28** (+$8,000, transaction ids `184c5f0b-…`, `a331282d-…`, `efafbc51-…`). Historical rows store the report's Account Balance in the sheet **Available Balance** column and the report's Available Balance in **Account Balance**. The May 2025 **$403.60** then **$612.27** hole was two missing LeaseWeb card rows ($403.60 on 2025-05-05, $208.67 on 2025-05-06). `scripts/fix-airwallex-usd-from-bar.ts` added **19** missing report rows and reordered the tail from row 429 into report order, then renumbered Correct Order. From row **1711** (2026-08-31 Upwork) sync writes the columns by header, so AA is `=Z−Account Balance` from there down and `=Z−Available Balance` above. AA is **0 on every data row**. Other $8,000 Wise deposits were already on the tab (2024-10-10, 2025-10-16, 2025-11-14, 2026-02-09, 2026-04-06). Match rows appended as **Internal Transfer - IN**, plus `all banks`. Do not `values.update` empty strings into debit/credit cells: Sheets `ISBLANK` is false on `""`, so W becomes 0 on every credit. Omit `userEnteredValue` so the cell is truly blank.
+
+Quirks that will bite the next edit:
+
+- The wallet check is previous balance + signed `W`. A later nonzero `balance diff` is usually that first gap carried forward. If the other balance column steps exactly by `W`, the formula is subtracting the wrong column (that is the row 1711 switch).
+- Historical rows store the balance activity report swapped: sheet **Available Balance** = report Account Balance. Rows that have equal balances fit either way. From row **1711** (2026-08-31) sync writes the headers directly. Do not rewrite those rows with the swapped mapping. Balances-tab month-end uses **Account Balance**.
+- Same report as the activity page's **Generate balance activity report**: `createBalanceActivityReport` in `src/airwallex.ts` (`BALANCE_ACTIVITY_REPORT`, CSV, `report_version` 1.2.0, `include_reservations` false). The page allows 3 months per file and uses the account timezone **America/Los_Angeles**. The function's default timezone is **UTC**, which shifts the dates versus the sheet. Download content as `text/plain` (`downloadFinancialReportContent`); `Accept: application/json` returns 406. Card authorisations are not on this report and are not missing rows.
+- Historical UniqueID is `uniqueId([yyyy-mm-dd, signed amount, description], 8)`. Two CloudTalk −29.06 and two Speedex −6.76 share that key; add the transaction id when the 8-char id is already used. The fill script (`apps-script/bankconnector-airwallex-usd.js`) hashes time + description + amount at length **12**. Do not re-hash old rows with the fill scheme.
+- `Z` is `=Z_prev+W`. A mid-sheet insert does not retarget the next row, and `copyPaste` of `PASTE_FORMULA` double-shifts it. Set `Z` on the new row and the following row. Appending at the end and copying from the old last row, one destination row at a time, adjusts the refs. Permuting A–U and leaving V–AA in place is safe only when every `Z` already points at the previous physical row.
+- `Correct Order` is a literal (`Y2=1`, then 1..n). Inserts leave later numbers stale. Renumber the whole column after a move.
+- `Airwallex USD match` is not aligned to the bank tab. New rows must VLOOKUP `$A` of their own row. Older formulas point at the wrong row (row 1315 used `$A1312`). Do not reorder the match tab as a block. `all banks` rows are appended the same way, with C–G copied from the previous last row.
+- A `FORMULA` read returns a number for a literal. Check the value is a string before treating it as a formula.
+
 ### 13.3 Reconciliation status (2026-09-12)
 
 | Bank | Status | Notes |
@@ -618,11 +645,20 @@ The chain was exact until **2023-08-04**. Two Mercury → Wise ACH credits were 
 
 **Fixed 2026-09-14:** inserted the two missing INs (`backfill-wise-usd-aug2023-25k.ts --write`) before each fee row, plus `Wise USD match` (`Internal Transfer - IN`) and `all banks`. TransferWise IDs = the fee’s `BALANCE-…` refs (API token not available locally). Then rewrote `AD3:AD1805` to `=AD_prev+Z` (`fix-wise-usd-progressive-formulas.ts`) — mid-sheet insert left later AD formulas pointing past the new Z. Aug 2023 `balance diff` is ~0. Residual first break is r874 (−$1.13, pre-existing Z=0 vs Wise Amount −$1.13).
 
-**Wise EUR balance columns:** the tab carries three interchangeable running balances —
-`Running Balance` (col 8), `BALANCE EUR` (col 29) and `calculated progressive balance` (col 30) —
-plus a `balance diff` column (col 31) that is `0.00` on all 3,793 rows, i.e. the tab's own
-self-check that they agree. `pickBalCol` selects col 8; that is safe. Note there is **no plain
-`BALANCE` header** here, unlike Wise USD (col 27).
+**Wise EUR balance columns:** `Running Balance` is the wallet balance. `BALANCE EUR` is `=Running Balance`. `calculated progressive balance` is seeded with that on row 2, then `=previous+Original Amount`. `balance diff` is progressive minus `BALANCE EUR`. There is **no plain `BALANCE` header**, unlike Wise USD. `pickBalCol` uses `Running Balance`.
+
+**Fixed 2026-11-01 (v0.7.21):** a `#REF!` in the progressive formula at the old row 7 made every later diff an error, and rows added after the last formula had none. The 2019-01-02 **+€20,000** SYNCBNB deposit was sitting on row 3; the wallet applies it after the 2018-12-30 balance of €5,253.47, so that row was moved there (`scripts/fix-wise-eur-progressive.ts`). `SORT` on the moved block is the sheet row number. One fee does not belong in the sum: **2018-09-10 −€0.60** `TRANSFER-45766306` (its `Running Balance` does not change; the following send to MP Legal carries `Total fees` 0.60 and the wallet drops by €2,000 only). That row's progressive formula is `=previous` with no `+Original Amount`. Balance diff is **0 on all 3,824 data rows**.
+
+Quirks that will bite the next edit:
+
+- `apps-script/bankconnector-wise-eur.js` writes the yellow columns only, through `Exchange rate`. It does not fill `DATE`, `AMOUNT`, `Direction`, `SORT`, `BALANCE EUR`, `calculated progressive balance`, or `balance diff`. After a fill, copy those formulas onto the new rows or the tail diff goes blank again.
+- Wallet step is previous `Running Balance` + this `Original Amount` (EUR). `AMOUNT` is USD (`=Exchange rate * Original Amount`) and will not match the EUR balance.
+- `Original Date` is mixed. Early rows are text `d/m/yyyy`. From Jan 2019 many cells are date serials, number format `mm-dd-yyyy`, displaying `dd-mm-yyyy` (`02-01-2019`). `DATE` has two formulas: `SPLIT` on `/`, and `RIGHT`/`MID`/`LEFT` on that displayed dash string. Move the formula and the cell's number format with the value. A `FORMULA` read returns the serial (`43497`), not `02-01-2019`. A serial written into a text-formatted cell makes `RIGHT` read `43497`.
+- `SORT` is the sheet row number (row 3825 → 3825). Airwallex `Correct Order` is `1..n` with row 2 = 1.
+- `Wise EUR match` VLOOKUPs by UniqueID over `'Wise EUR'!$A:$AE`, column chosen by header. Reordering the bank tab does not break it. Match `Amount` is the USD `AMOUNT` column, so the −€0.60 fee has to stay in `Original Amount`.
+- Row 3774 UniqueID is `=UNIQUE_ID(Z3774,AA3774,G3774,12)`. The other UniqueIDs are literals.
+- One `#REF!` in the progressive chain turns every later diff into an error. Count errors, not only numeric gaps.
+- Fee rows normally do change `Running Balance`. Leave a fee out of the sum only when the paired send's `Total fees` equals it and the wallet drop equals the send amount.
 
 **Do not use** `scripts/fill-balances-eom-from-all-banks.ts` for reconciliation — it builds running totals from **`all banks`** and drifts vs bank tabs. Use **`scripts/fix-balances-from-bank-tab.ts`** per bank instead.
 
@@ -641,8 +677,12 @@ self-check that they agree. `pickBalCol` selects col 8; that is safe. Note there
 | `fix-all-banks-duplicates.ts [--write]` | Remove the three known duplicate rows (Cledara + Wise USD) |
 | `audit-wise-usd-duplicate-uids.ts` | List duplicate UniqueIDs on Wise USD vs `all banks` VLOOKUP hits |
 | `probe-wise-usd-progressive-break.ts` | First `balance diff` ≠ 0 on Wise USD; BALANCE-fee rows whose wallet step ≠ AMOUNT |
+| `fix-airwallex-usd-balance-order.ts [--write]` | Reorder Airwallex USD A–U so `balance diff` follows the wallet (window 3). Does not invent the $8,000 hole at row 403 |
+| `backfill-airwallex-usd-wise-8k.ts [--write]` | Insert the three missing Wise $8,000 deposits (2025-04-16, 2025-04-29, 2025-05-28) plus match and all banks |
+| `fix-airwallex-usd-from-bar.ts [--write]` | Put the Airwallex USD tail in balance-report order, add missing rows, renumber Correct Order |
 | `backfill-wise-usd-aug2023-25k.ts [--write]` | Insert the two missing Aug 2023 Mercury→Wise $25k INs + match + all banks |
 | `fix-wise-usd-progressive-formulas.ts [--write]` | Rewrite Wise USD AD column to `=AD_prev+Z` after mid-sheet inserts |
+| `fix-wise-eur-progressive.ts [--write]` | Move the misplaced 2019-01-02 +€20,000 Wise EUR row and rebuild progressive balance / balance diff |
 | `fix-wise-usd-duplicate-uids.ts [--write]` | Re-hash duplicate Wise USD UIDs, add missing `all banks` rows, delete identical copies |
 | `internal-transfer-pairing.ts` | Shared OUT↔IN pairing rules (−3 to +10 days, USD amount tolerance) |
 | `pair-amount-usd.ts` | Normalize txn amounts to USD for pairing (match-tab currency rules + desc parse) |
@@ -1188,6 +1228,17 @@ uses **date + amount** (±3 days, ±$0.02), not description alone.
 
 | Date | Change |
 |------|--------|
+| 2026-11-17 | **Read-only export for cfo.hosthub.com (v0.8.0)**: `POST /cron/export-transactions` `{bank, sinceMs}` (cron bearer). It returns the same rows the sheet sync would add, but does not call the sheet webhook or touch the `*-sync.json` stores (`src/export-mode.ts`). Banks: `mercury`, `airwallex-usd`, `airwallex-eur`, `cledara`, `wise-usd`, `wise-eur`, `wise-gbp`, `paypal`, `eurobank`, `eurobank-ike`, `viva`. Cledara export has no 50-row cap. The missing route `/cron/sync-wise-gbp-transactions` (already called by the sheet menu) is now registered. |
+| 2026-11-01 | **Airwallex USD sheet quirks** — report is `createBalanceActivityReport` (3-month chunks, account timezone America/Los_Angeles; the helper defaults to UTC). Historical UniqueID is the 8-char date+amount+description hash, fill script is length 12. `Z` breaks on a mid-sheet insert. Match VLOOKUPs are not row-aligned. See §13.3. |
+| 2026-11-01 | **Wise EUR sheet quirks** — fill script does not copy progressive/diff formulas; `Original Date` is text `d/m/yyyy` or a serial whose display is `dd-mm-yyyy`; `DATE` has two formula dialects that must move with the cell format; `SORT` is the row number; match Amount is USD `AMOUNT`; row 3774 UniqueID is a `UNIQUE_ID` formula. See §13.3. |
+| 2026-11-01 | **Wise EUR progressive balance (v0.7.21)** — `#REF!` from the old row 7 and missing formulas on the tail made `balance diff` an error. Moved the 2019-01-02 +€20,000 deposit from row 3 to after 2018-12-30 (€5,253.47). Rebuilt `calculated progressive balance` (`=previous+Original Amount`, seeded from row 2) and `balance diff`. The 2018-09-10 −€0.60 `TRANSFER-45766306` fee did not move `Running Balance`, so that row does not add its amount. Diff is 0 on all 3,824 rows. `SORT` renumbered to the row number through the move. |
+| 2026-11-01 | **Airwallex USD balance diff cleared (v0.7.20)** — balance activity report (same report as the Airwallex activity page) vs the tab from 2025-05-01: **19 missing card rows** added (LeaseWeb $403.60 on 2025-05-05, LeaseWeb $208.67 on 2025-05-06, plus Tideways, CloudTalk, Speedex, and others) and **24** existing rows put back in report order. **Correct Order** renumbered `1..1835`. Historical rows still store report Account Balance in sheet **Available Balance**. From row **1711** (2026-08-31 Upwork) new sync rows store the columns directly, so AA is `=Z-Q` (Account Balance) from there down. AA is **0 on every data row**. |
+| 2026-11-01 | **Airwallex USD Wise $8,000 inserted (v0.7.19)** — balance-report deposits **2025-04-16**, **2025-04-29**, **2025-05-28** added on `Airwallex USD`, `Airwallex USD match` (Internal Transfer - IN), and `all banks`. Sheet Available Balance = report Account Balance, matching older rows. AA is 0 through 2025-05-04. Next break 2025-05-05 ~$403.60. |
+| 2026-11-01 | **Airwallex USD missing Wise $8,000** — UI deposits **2025-04-16**, **2025-04-29**, **2025-05-28** are not on the tab. They sit in the three +$8,000 balance jumps. 2025-10-16, 2025-11-14, 2026-02-09, 2026-04-06 are already on the tab. |
+| 2026-11-01 | **Airwallex USD +$8,000 holes** — both balances jump $8,000 with no deposit row in **2025-04-15→17**, **2025-04-27→29**, and **2025-05-27→28**. Sheet $8,000 Wise INs are 2024-10-10, 2025-10-16, 2025-11-14, 2026-02-09, 2026-04-06. |
+| 2026-11-01 | **Airwallex USD balance diff (v0.7.18)** — AA was nonzero from row 37 because same-time card rows sat up to 3 places off wallet order. Reordered A–U (`fix-airwallex-usd-balance-order.ts`); AA is 0 through row 402. From row 403 (2025-04-17) both balances are $8,000 above the running sum, with no deposit row on the tab, so later diffs stay offset. Empty-string writes made `ISBLANK` false and zeroed credits; those cells were cleared. Match tab left alone (VLOOKUP by UniqueID). |
+| 2026-11-01 | **Airwallex env not live until deploy** — PUT of `AIRWALLEX_*` plus `render restart` left the web process on the old key. Menu fill at 15:12 UTC still 403. New deploy `dep-dbjle5gu01pc73fqoc10` loaded the BankConnector key; live `GET /cron/debug/airwallex-transactions` then **200**. |
+| 2026-11-01 | **Airwallex Render creds** — restricted key **BankConnector** (client id `ZCHiPN9QRyuZjo17SamAyQ`, created 2026-11-01; Balances View, Financial Reports Edit, Financial Transactions View). Login probe **201**. Render `AIRWALLEX_CLIENT_ID` / `AIRWALLEX_API_KEY` set to that key (previous client id prefix `jOLl4E` was a different key and 403’d). `AIRWALLEX_ACCOUNT_ID` left as `acct_…`. Secrets stay on Render only. Admin key secret was regenerated by mistake the same day; client id still `vufsDW5JTK2QPNACJL2Wlg` — other apps must use the new Admin secret. |
 | 2026-11-01 | **Airwallex 403 on login (v0.7.17)** — Render job showed failure at `/authentication/login`, not BAR. Retry login **without** `x-login-as` when account id yields 403; drop `x-login-as` on Bearer requests. If still 403, rotate `AIRWALLEX_CLIENT_ID` / `AIRWALLEX_API_KEY` on Render or fix `AIRWALLEX_ACCOUNT_ID` (account id, not org id). |
 | 2026-10-08 | **Row 908 (2026-10-06) repaired** — EUR USD cols interpolated from Oct 5 + Oct 7 Balances rows (bank tabs had no Oct 6 txn rows); TOTAL recalc. Script: `scripts/repair-balances-2026-10-06.ts`. |
 | 2026-10-08 | **FX fallback (v0.7.15)** — if Frankfurter `/latest` fails (Oct 6 partial Balances fill), walk back up to 10 ECB dates, then **`data/fx-rates.json`** last good rates so EUR columns + CC `eurUsdClose` still write. |

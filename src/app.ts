@@ -28,7 +28,8 @@ import { syncEurobankBranchTransactionsToSheet } from "./sync-eurobank.ts";
 import { syncEurobankIkeTransactionsToSheet } from "./sync-eurobank-ike.ts";
 import { syncPaypalTransactionsToSheet } from "./sync-paypal-transactions.ts";
 import { syncVivaTransactionsToSheet } from "./sync-viva-transactions.ts";
-import { syncWiseEurTransactionsToSheet, syncWiseUsdTransactionsToSheet } from "./sync-wise-transactions.ts";
+import { syncWiseEurTransactionsToSheet, syncWiseGbpTransactionsToSheet, syncWiseUsdTransactionsToSheet } from "./sync-wise-transactions.ts";
+import { runInExportMode } from "./export-mode.ts";
 
 export function createApp() {
   const log = (msg: string, extra?: unknown) => console.log(`[bank ${new Date().toISOString()}] ${msg}`, extra ?? "");
@@ -426,6 +427,42 @@ export function createApp() {
     registerTransactionSync("/cron/sync-eurobank-transactions", "sync-eurobank-transactions", syncEurobankBranchTransactionsToSheet);
     registerTransactionSync("/cron/sync-eurobank-ike-transactions", "sync-eurobank-ike-transactions", syncEurobankIkeTransactionsToSheet);
     registerTransactionSync("/cron/sync-viva-transactions", "sync-viva-transactions", syncVivaTransactionsToSheet);
+    registerTransactionSync("/cron/sync-wise-gbp-transactions", "sync-wise-gbp-transactions", syncWiseGbpTransactionsToSheet);
+
+    const exporters: Record<string, (sinceMs: number) => Promise<{ transactions: unknown[] }>> = {
+      "mercury": (s) => syncMercuryTransactionsToSheet(s),
+      "airwallex-usd": (s) => syncAirwallexUsdTransactionsToSheet(s),
+      "airwallex-eur": (s) => syncAirwallexEurTransactionsToSheet(s),
+      "cledara": (s) => syncCledaraTransactionsToSheet(s, []),
+      "wise-usd": (s) => syncWiseUsdTransactionsToSheet(s, []),
+      "wise-eur": (s) => syncWiseEurTransactionsToSheet(s, []),
+      "wise-gbp": (s) => syncWiseGbpTransactionsToSheet(s, []),
+      "paypal": (s) => syncPaypalTransactionsToSheet(s, []),
+      "eurobank": (s) => syncEurobankBranchTransactionsToSheet(s, []),
+      "eurobank-ike": (s) => syncEurobankIkeTransactionsToSheet(s, []),
+      "viva": (s) => syncVivaTransactionsToSheet(s, []),
+    };
+
+    // Read-only pull for cfo.hosthub.com: same rows as the sheet sync, without posting or remembering them.
+    app.post("/cron/export-transactions", express.json({ limit: "4kb" }), async (req, res) => {
+      if (!cronAuth(req, res)) return;
+      const body = req.body as { bank?: string; sinceMs?: number };
+      const bank = String(body?.bank ?? "");
+      const exporter = exporters[bank];
+      if (!exporter) {
+        res.status(400).json({ error: `Unknown bank "${bank}"`, banks: Object.keys(exporters) });
+        return;
+      }
+      try {
+        const sinceMs = Number(body?.sinceMs ?? 0) || 0;
+        const { transactions } = await runInExportMode(() => exporter(sinceMs));
+        log(`export-transactions ${bank}: ${transactions.length} row(s)`);
+        res.json({ ok: true, bank, sinceMs, count: transactions.length, transactions });
+      } catch (err) {
+        log(`export-transactions ${bank} failed`, (err as Error).message);
+        res.status(500).json({ error: (err as Error).message });
+      }
+    });
 
     app.post("/cron/seed-balance-cache", express.json({ limit: "4kb" }), (req, res) => {
       if (!cronAuth(req, res)) return;
